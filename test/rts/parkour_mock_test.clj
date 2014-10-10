@@ -1,9 +1,10 @@
-(ns rts.core-test
+(ns rts.parkour-mock-test
   (:require [clojure.test :refer :all]
-            [rts.core :refer :all]))
+            [rts.engine :refer :all])
+  (:use rts.parkour-mock))
 
 (deftest parkour-mock-normal
-  (let [game (new-parkour-mock :normal)
+  (let [game (new-parkour-mock :normal 480 360 60)
         game-loop (fn [] (main-loop game))
         game-thread (Thread. game-loop)]
     (.setDaemon game-thread true)
@@ -20,6 +21,6 @@
           x (gs :x)
           y (gs :y)
           fps (gs :fps)]
-      (is (< 190 x 210))
+      (is (< 180 x 220))
       (is (= y 0))
       (is (< 57 fps 63)))))
