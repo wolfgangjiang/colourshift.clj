@@ -74,18 +74,20 @@
                                 (:max-y config))
         timestep (new-timestep (:best-fps config))]
     (loop []
-      (timestep :frame-start)
-      (game :handle-user-inputs (inputs-listener :collect))
-      (game :handle-tick (timestep :get-dt))
-      (game :put-engine-info {:fps (timestep :get-fps)})
-      (with-graphics-2d board-frame g
-        (.clearRect g 0 0
-                    (.getWidth board-frame)
-                    (.getHeight board-frame))
-        (game :render g))
-      (Thread/sleep (timestep :get-sleep-time))
-      (timestep :frame-finish)
-      (recur))))
+      (when-not (game :should-stop)
+        (timestep :frame-start)
+        (game :handle-user-inputs (inputs-listener :collect))
+        (game :handle-tick (timestep :get-dt))
+        (game :put-engine-info {:fps (timestep :get-fps)})
+        (with-graphics-2d board-frame g
+          (.clearRect g 0 0
+                      (.getWidth board-frame)
+                      (.getHeight board-frame))
+          (game :render g))
+        (Thread/sleep (timestep :get-sleep-time))
+        (timestep :frame-finish)
+        (recur)))
+    (.dispose board-frame)))
 
 (defn new-game [config methods]
   (let [{:keys [init handle-user-inputs handle-tick put-engine-info render]} methods
@@ -94,13 +96,12 @@
       (case method
         :gs @gs
         :config (:config @gs)
+        :should-stop (:should-stop @gs)
+        :stop (swap! gs assoc-in [:should-stop] true)
         :handle-user-inputs 
-        (swap! gs (fn [gs] 
-                    (apply handle-user-inputs gs args)))
+        (swap! gs #(apply handle-user-inputs % args))
         :handle-tick
-        (swap! gs (fn [gs]
-                    (apply handle-tick gs args)))
+        (swap! gs #(apply handle-tick % args))
         :put-engine-info
-        (swap! gs (fn [gs]
-                    (apply put-engine-info gs args)))
+        (swap! gs #(apply put-engine-info % args))
         :render (apply render @gs args)))))

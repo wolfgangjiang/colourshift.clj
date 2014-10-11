@@ -33,6 +33,9 @@
 (defn render [gs g]
   (let [x (get gs :x)
         y (get gs :y)]
+    (let [test-tag (get-in gs [:config :test-tag])]
+      (when (= test-tag :slow)
+        (Thread/sleep 25)))
     (.setColor g java.awt.Color/BLUE)
     (.fillRect g x y 10 10)))
 
