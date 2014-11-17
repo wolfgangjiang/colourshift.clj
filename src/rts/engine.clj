@@ -1,6 +1,10 @@
 (ns rts.engine
   (:import [java.util Date]))
 
+(defn trace [info obj]
+  (prn info obj)
+  obj)
+
 (defn new-timestep [best-fps]
   (let [best-frame-interval (/ 1000.0 best-fps)
         cur-time (fn [] (System/currentTimeMillis))
