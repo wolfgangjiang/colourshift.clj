@@ -6,6 +6,11 @@
                  :north [0 -1]
                  :south [0 1]})
 
+(def opposites {:east :west
+                :west :east
+                :north :south
+                :south :north})
+
 (def blendings {#{} :gray
                 #{:red} :red
                 #{:blue} :blue
@@ -33,20 +38,37 @@
         [x2 y2] p2]
     [(+ x1 x2) (+ y1 y2)]))
 
-(defn find-by-pos [pos tile-list]
-  (first (filter #(= pos (:pos %)) tile-list)))
+;; (defn find-by-pos [pos tile-list]
+;;   (first (filter #(= pos (:pos %)) tile-list)))
 
-(defn subtract-by-pos [total unwanted]
-  (let [unwanted-pos-set (into (hash-set) (map :pos unwanted))
-        remaining (remove #(contains? unwanted-pos-set (:pos %)) total)]
+;; (defn subtract-by-pos [total unwanted]
+;;   (let [unwanted-pos-set (into (hash-set) (map :pos unwanted))
+;;         remaining (remove #(contains? unwanted-pos-set (:pos %)) total)]
+;;     remaining))
+
+(defn find-by-id [id tile-list]
+  (first (filter #(= id (:id %)) tile-list)))
+
+(defn subtract-by-id [total unwanted]
+  (let [unwanted-pos-set (into (hash-set) (map :id unwanted))
+        remaining (remove #(contains? unwanted-pos-set (:id %)) total)]
     remaining))
 
-(defn get-neighbors-by-pos-diffs [tile tile-list]
+(defn get-neighbors-by-connection [tile tile-list]
   (let [connection-dirs (ensure-vector (:connection tile))
         pos (:pos tile)
-        pos-diffs (map #(% directions) connection-dirs)
-        connected-poses (into (hash-set) (map #(pos-add pos %) pos-diffs))]
-    (filter #(contains? connected-poses (:pos %)) tile-list)))
+        connected-tiles (map (fn [dir]
+                               (let [pos-diff (directions dir)
+                                     pos-on-dir (pos-add pos pos-diff)
+                                     opposite-dir (opposites dir)
+                                     tiles-on-dir (filter #(= pos-on-dir (:pos %)) tile-list)
+                                     connected (filter (fn [t]
+                                                         (let [t-connection (ensure-vector (:connection t))]
+                                                           (some #{opposite-dir} t-connection))) tiles-on-dir)]
+                                 (if (empty? connected)
+                                   nil
+                                   (first connected)))) connection-dirs)]
+    (remove nil? connected-tiles)))
 
 (defn breadth-first-traverse [start-tile all-tiles get-neighbors-of subtract]
   (let [breadth-first-recur
@@ -73,7 +95,7 @@
                                                        (rest remaining-tiles)
                                                        get-neighbors-of
                                                        subtract)
-                  unused-tiles (subtract-by-pos remaining-tiles new-subgraph)]
+                  unused-tiles (subtract remaining-tiles new-subgraph)]
               (recur unused-tiles (conj subgraphs new-subgraph)))))]
     (find-connected-subgraphs-recur all-tiles [])))
 
@@ -89,8 +111,7 @@
 
 (defn dye-board [board]
   (let [subgraphs (find-connected-subgraphs board
-                                            get-neighbors-by-pos-diffs
-                                            subtract-by-pos)
+                                            get-neighbors-by-connection
+                                            subtract-by-id)
         dyed-subgraphs (map dye-subgraph subgraphs)]
     (apply concat dyed-subgraphs)))
-
