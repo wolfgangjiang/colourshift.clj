@@ -5,11 +5,11 @@
 
 (deftest dye-one-source-one-bulb-one-bi-wire
   (let [raw-board [{:id 0 :pos [0 0] :type :bulb
-                    :connection :east }
+                    :connection [:east] }
                    {:id 1 :pos [1 0] :type :wire
                     :connection [:west :east]}
                    {:id 2 :pos [2 0] :type :source
-                    :connection :west :colour :red}]
+                    :connection [:west] :colour :red}]
         dyed-board (dye-board raw-board)
         bulb-colour (:colour (find-by-id 0 dyed-board))
         wire-colour (:colour (find-by-id 1 dyed-board))]
@@ -18,11 +18,11 @@
 
 (deftest dye-one-source-one-bulb-one-bi-wire-wrong-direction
   (let [raw-board [{:id 0 :pos [0 0] :type :bulb
-                    :connection :north }
+                    :connection [:north] }
                    {:id 1 :pos [1 0] :type :wire
                     :connection [:west :east]}
                    {:id 2 :pos [2 0] :type :source
-                    :connection :west :colour :red}]
+                    :connection [:west] :colour :red}]
         dyed-board (dye-board raw-board)
         bulb-colour (:colour (find-by-id 0 dyed-board))
         wire-colour (:colour (find-by-id 1 dyed-board))]
@@ -31,13 +31,13 @@
 
 (deftest dye-one-source-two-bulbs-one-tri-wire
   (let [raw-board [{:id 0 :pos [0 0] :type :bulb
-                    :connection :east}
+                    :connection [:east]}
                    {:id 1 :pos [1 0] :type :wire
                     :connection [:west :east :south]}
                    {:id 2 :pos [2 0] :type :source
-                    :connection :west :colour :red}
+                    :connection [:west] :colour :red}
                    {:id 3 :pos [1 1] :type :bulb
-                    :connection :north}]
+                    :connection [:north]}]
         dyed-board (dye-board raw-board)
         bulb1-colour (:colour (find-by-id 0 dyed-board))
         bulb2-colour (:colour (find-by-id 3 dyed-board))
@@ -48,13 +48,13 @@
 
 (deftest dye-two-sources-one-bulb-one-tri-wire-blending
   (let [raw-board [{:id 0 :pos [0 0] :type :bulb
-                    :connection :east}
+                    :connection [:east]}
                    {:id 1 :pos [1 0] :type :wire
                     :connection [:west :east :south]}
                    {:id 2 :pos [2 0] :type :source
-                    :connection :west :colour :red}
+                    :connection [:west] :colour :red}
                    {:id 3 :pos [1 1] :type :source
-                    :connection :north :colour :blue}]
+                    :connection [:north] :colour :blue}]
         dyed-board (dye-board raw-board)
         bulb-colour (:colour (find-by-id 0 dyed-board))
         wire-colour (:colour (find-by-id 1 dyed-board))
@@ -67,15 +67,15 @@
 
 (deftest dye-three-sources-one-bulb-one-quat-wire-blending
   (let [raw-board [{:id 0 :pos [0 0] :type :bulb
-                    :connection :east}
+                    :connection [:east]}
                    {:id 1 :pos [1 0] :type :wire
                     :connection [:west :east :south :north]}
                    {:id 2 :pos [2 0] :type :source
-                    :connection :west :colour :red}
+                    :connection [:west] :colour :red}
                    {:id 3 :pos [1 1] :type :source
-                    :connection :north :colour :blue}
+                    :connection [:north] :colour :blue}
                    {:id 4 :pos [1 -1] :type :source
-                    :connection :south :colour :green}]
+                    :connection [:south] :colour :green}]
         dyed-board (dye-board raw-board)
         bulb-colour (:colour (find-by-id 0 dyed-board))
         wire-colour (:colour (find-by-id 1 dyed-board))]
@@ -84,15 +84,15 @@
 
 (deftest dye-two-sources-two-bulbs-one-quat-wire-blending
   (let [raw-board [{:id 0 :pos [0 0] :type :bulb
-                    :connection :east}
+                    :connection [:east]}
                    {:id 1 :pos [1 0] :type :wire
                     :connection [:west :east :south :north]}
                    {:id 2 :pos [2 0] :type :source
-                    :connection :west :colour :red}
+                    :connection [:west] :colour :red}
                    {:id 3 :pos [1 1] :type :source
-                    :connection :north :colour :green}
+                    :connection [:north] :colour :green}
                    {:id 4 :pos [1 -1] :type :bulb
-                    :connection :south}]
+                    :connection [:south]}]
         dyed-board (dye-board raw-board)
         bulb1-colour (:colour (find-by-id 0 dyed-board))
         bulb2-colour (:colour (find-by-id 4 dyed-board))
@@ -103,7 +103,7 @@
 
 (deftest dye-bulbs-and-wire-with-no-colour
   (let [raw-board [{:id 0 :pos [0 0] :type :bulb
-                    :connection :east }
+                    :connection [:east] }
                    {:id 1 :pos [1 0] :type :wire
                     :connection [:west :east]}]
         dyed-board (dye-board raw-board)
@@ -114,17 +114,17 @@
 
 (deftest dye-two-sources-two-bulbs-one-twin-wire-expecting-two-colours
   (let [raw-board [{:id 0 :pos [0 0] :type :bulb
-                    :connection :east}
+                    :connection [:east]}
                    {:id 1 :pos [1 0] :type :twin-wire
                     :connection [:west :east]}
                    {:id 2 :pos [1 0] :type :twin-wire
                     :connection [:north :south]}
                    {:id 3 :pos [2 0] :type :source
-                    :connection :west :colour :red}
+                    :connection [:west] :colour :red}
                    {:id 4 :pos [1 1] :type :source
-                    :connection :north :colour :green}
+                    :connection [:north] :colour :green}
                    {:id 5 :pos [1 -1] :type :bulb
-                    :connection :south}]
+                    :connection [:south]}]
         dyed-board (dye-board raw-board)
         bulb1-colour (:colour (find-by-id 0 dyed-board))
         bulb2-colour (:colour (find-by-id 5 dyed-board))
@@ -137,15 +137,15 @@
 
 (deftest dye-two-bulbs-one-source-one-twin-wire-partial-lit
   (let [raw-board [{:id 0 :pos [0 0] :type :bulb
-                    :connection :east}
+                    :connection [:east]}
                    {:id 1 :pos [1 0] :type :twin-wire
                     :connection [:west :east]}
                    {:id 2 :pos [1 0] :type :twin-wire
                     :connection [:north :south]}
                    {:id 3 :pos [2 0] :type :source
-                    :connection :west :colour :red}
+                    :connection [:west] :colour :red}
                    {:id 5 :pos [1 -1] :type :bulb
-                    :connection :south}]
+                    :connection [:south]}]
         dyed-board (dye-board raw-board)
         bulb1-colour (:colour (find-by-id 0 dyed-board))
         bulb2-colour (:colour (find-by-id 5 dyed-board))
@@ -158,7 +158,7 @@
 
 (deftest dye-empty-twin-wires
   (let [raw-board [{:id 0 :pos [0 0] :type :bulb
-                    :connection :east}
+                    :connection [:east]}
                    {:id 1 :pos [1 0] :type :twin-wire
                     :connection [:west :east]}
                    {:id 2 :pos [1 0] :type :twin-wire
@@ -170,3 +170,27 @@
     (is (= bulb-colour :gray))
     (is (= wire1-colour :gray))
     (is (= wire2-colour :gray))))
+
+(deftest dye-issue-on-not-full-dyeing-for-multiple-dead-ends
+  (let [raw-board [{:id 9 :pos [4 1] :type :wire
+                    :connection [:west :east]}
+                   {:id 10 :pos [5 2] :type :wire
+                    :connection [:north :south]}
+                   {:id 11 :pos [5 1] :type :wire
+                    :connection [:west :south]}
+                   {:id 12 :pos [3 1] :type :wire
+                    :connection [:east :south]}
+                   {:id 13 :pos [3 3] :type :wire
+                    :connection [:east :north]}
+                   {:id 14 :pos [5 3] :type :wire
+                    :connection [:west :north]}
+                   {:id 15 :pos [3 2] :type :source
+                    :connection [:north] :colour :blue}
+                   {:id 16 :pos [4 3] :type :wire
+                    :connection [:west :east]}]
+        dyed-board (dye-board raw-board)
+        wire1-colour (:colour (find-by-id 10 dyed-board))
+        wire2-colour (:colour (find-by-id 11 dyed-board))]
+    (is (= wire1-colour :blue))
+    (is (= wire2-colour :blue))))
+        

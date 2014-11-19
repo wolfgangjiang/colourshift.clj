@@ -1,5 +1,5 @@
 (ns rts.core
-  (:use rts.parkour-mock))
+  (:use rts.colourshift))
 
 (defn -main [& args]
   (start))
