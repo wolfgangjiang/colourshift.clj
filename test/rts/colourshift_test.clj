@@ -193,4 +193,57 @@
         wire2-colour (:colour (find-by-id 11 dyed-board))]
     (is (= wire1-colour :blue))
     (is (= wire2-colour :blue))))
-        
+
+(deftest finding-by-connection-handles-twin-wire-well
+  (let [board [{:id 0 :pos [1 1] :type :wire
+                :connection [:east :west]}
+               {:id 1 :pos [0 1] :type :twin-wire
+                :connection [:north :east]}
+               {:id 2 :pos [0 1] :type :twin-wire
+                :connection [:south :west]}]
+        from-tile (find-by-id 0 board)]
+    (is (= 1 (:id (find-by-connection :west from-tile board))))))
+
+;; active non-connection: from-tile does not have a connection to the
+;; direction of the target tile.
+(deftest finding-by-connection-handles-active-non-connection-well
+  (let [board [{:id 0 :pos [1 1] :type :wire
+                :connection [:east :west]}
+               {:id 1 :pos [1 0] :type :wire
+                :connection [:north :south]}]
+        from-tile (find-by-id 0 board)]
+    (is (= nil (find-by-connection :west from-tile board)))))
+
+;; active non-connection: from-tile havs a connection to the
+;; direction of the target tile, but target tile does not have a
+;; connection to the from tile.
+(deftest finding-by-connection-handles-passive-non-connection-well
+  (let [board [{:id 0 :pos [1 1] :type :wire
+                :connection [:east :west]}
+               {:id 1 :pos [0 1] :type :wire
+                :connection [:north :south]}]
+        from-tile (find-by-id 0 board)]
+    (is (= nil (find-by-connection :west from-tile board)))))
+
+(deftest finding-by-connection-handles-normal-connection-well
+  (let [board [{:id 0 :pos [1 1] :type :wire
+                :connection [:east :west]}
+               {:id 1 :pos [0 1] :type :wire
+                :connection [:north :east]}]
+        from-tile (find-by-id 0 board)]
+    (is (= 1 (:id (find-by-connection :west from-tile board))))))
+
+
+;;; A subwire should be of same colour of connected wire or bulb,
+;;; if there is no such connected tile, the subwire should be of same
+;;; colour as the source itself.
+(deftest dyeing-subwires-of-a-source-behaves-well
+  (let [raw-board [{:id 0 :pos [0 0] :type :source
+                    :connection [:east :south] :colour :red}
+                   {:id 1 :pos [1 0] :type :wire
+                    :connection [:west :east]}
+                   {:id 2 :pos [2 0] :type :source
+                    :connection [:west] :colour :green}]
+        dyed-board (dye-board raw-board)
+        source-1-subwires (:subwires (find-by-id 0 dyed-board))]
+    (is (= source-1-subwires {:east :yellow :south :red}))))

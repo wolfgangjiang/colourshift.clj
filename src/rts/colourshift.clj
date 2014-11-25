@@ -56,20 +56,24 @@
         remaining (remove #(contains? unwanted-pos-set (:id %)) total)]
     remaining))
 
+(defn find-by-connection [dir tile tile-list]
+  (let [connection-dirs (into (hash-set) (:connection tile))
+        pos (:pos tile)]
+    (if (not (contains? connection-dirs dir))
+      nil  ;; active non-connection
+      (let [pos-diff (directions dir)
+            pos-on-dir (pos-add pos pos-diff)
+            opposite-dir (opposites dir)
+            tiles-on-dir (filter #(= pos-on-dir (:pos %)) tile-list)
+            connected (filter (fn [t]
+                                (let [t-connection (:connection t)]
+                                  (some #{opposite-dir} t-connection))) tiles-on-dir)]
+        (if (empty? connected)
+          nil
+          (first connected))))))
+
 (defn get-neighbors-by-connection [tile tile-list]
-  (let [connection-dirs (:connection tile)
-        pos (:pos tile)
-        connected-tiles (map (fn [dir]
-                               (let [pos-diff (directions dir)
-                                     pos-on-dir (pos-add pos pos-diff)
-                                     opposite-dir (opposites dir)
-                                     tiles-on-dir (filter #(= pos-on-dir (:pos %)) tile-list)
-                                     connected (filter (fn [t]
-                                                         (let [t-connection (:connection t)]
-                                                           (some #{opposite-dir} t-connection))) tiles-on-dir)]
-                                 (if (empty? connected)
-                                   nil
-                                   (first connected)))) connection-dirs)]
+  (let [connected-tiles (map #(find-by-connection % tile tile-list) (keys directions))]
     (remove nil? connected-tiles)))
 
 (defn breadth-first-traverse [start-tile all-tiles get-neighbors-of subtract]
@@ -101,7 +105,18 @@
               (recur unused-tiles (conj subgraphs new-subgraph)))))]
     (find-connected-subgraphs-recur all-tiles [])))
 
-(defn dye-subgraph [tile-list]
+(defn dye-subwires-of-a-source [source-tile tile-list]
+  (let [subwire-colour-pairs (map (fn [dir]
+                                    (let [neighbor-on-dir (find-by-connection dir source-tile tile-list)
+                                          subwire-colour (if neighbor-on-dir
+                                                           (:colour neighbor-on-dir)
+                                                           (:colour source-tile))]
+                                      [dir subwire-colour]))
+                                  (:connection source-tile))
+        valid-pairs (remove #(nil? (second %)) subwire-colour-pairs)]
+    (into (hash-map) valid-pairs)))
+
+(defn dye-subgraph-wires-and-bulbs [tile-list]
   (let [sources (filter #(= :source (:type %)) tile-list)
         colours (into (hash-set) (map :colour sources))
         merged-colour (get blendings colours)]
@@ -109,7 +124,21 @@
            (if (= :source (:type tile))
              tile
              (assoc tile :colour merged-colour)))
-         tile-list)))
+         tile-list)))  
+
+(defn dye-subgraph-source-subwires [tile-list]
+  (map (fn [tile]
+         (if (= :source (:type tile))
+           (assoc tile :subwires (dye-subwires-of-a-source tile tile-list))
+           tile))
+       tile-list))
+
+;;; implemented in two passes, to ensure that all neighbors are
+;;; properly dyed when dyeing subwires of a source.
+(defn dye-subgraph [tile-list]
+  (-> tile-list
+      dye-subgraph-wires-and-bulbs
+      dye-subgraph-source-subwires))
 
 (defn dye-board [board]
   (let [subgraphs (find-connected-subgraphs board
@@ -174,6 +203,70 @@
               tile-size tile-size
               270 90)))
 
+(defmethod draw-wire #{:west :east :south}
+  [g connections start-x start-y tile-size]
+  (let [half (/ tile-size 2)]
+    (.drawLine g
+               start-x (+ start-y half)
+               (+ start-x tile-size) (+ start-y half))
+    (.drawLine g
+               (+ start-x half) (+ start-y half)
+               (+ start-x half) (+ start-y tile-size))))
+
+(defmethod draw-wire #{:west :east :north}
+  [g connections start-x start-y tile-size]
+  (let [half (/ tile-size 2)]
+    (.drawLine g
+               start-x (+ start-y half)
+               (+ start-x tile-size) (+ start-y half))
+    (.drawLine g
+               (+ start-x half) start-y
+               (+ start-x half) (+ start-y half))))
+
+(defmethod draw-wire #{:south :east :north}
+  [g connections start-x start-y tile-size]
+  (let [half (/ tile-size 2)]
+    (.drawLine g
+               (+ start-x half) (+ start-y half)
+               (+ start-x tile-size) (+ start-y half))
+    (.drawLine g
+               (+ start-x half) start-y
+               (+ start-x half) (+ start-y tile-size))))
+
+(defmethod draw-wire #{:south :west :north}
+  [g connections start-x start-y tile-size]
+  (let [half (/ tile-size 2)]
+    (.drawLine g
+               start-x (+ start-y half)
+               (+ start-x half) (+ start-y half))
+    (.drawLine g
+               (+ start-x half) start-y
+               (+ start-x half) (+ start-y tile-size))))
+
+(defmethod draw-wire #{:south :west :north :east}
+  [g connections start-x start-y tile-size]
+  (let [half (/ tile-size 2)
+        center-radius (/ tile-size 5)
+        center-x (+ start-x half)
+        center-y (+ start-y half)
+        end-x (+ start-x tile-size)
+        end-y (+ start-y tile-size)]
+    (.drawOval g
+               (- center-x center-radius) (- center-y center-radius)
+               (* 2 center-radius) (* 2 center-radius))
+    (.drawLine g
+               start-x center-y
+               (- center-x center-radius) center-y)
+    (.drawLine g
+               (+ center-x center-radius) center-y
+               end-x center-y)
+    (.drawLine g
+               center-x start-y
+               center-x (- center-y center-radius))
+    (.drawLine g
+               center-x (+ center-y center-radius)
+               center-x end-y)))
+
 (defn draw-lit-bulb [g palette-colour
                      start-x start-y tile-size]
   (let [bulb-size (/ tile-size 2.3)
@@ -196,23 +289,26 @@
                bulb-size
                bulb-size)
     (.setColor g expected-palette-colour)
-    ;; (.setStroke g (BasicStroke. 2))
     (.drawOval g
                (+ start-x bulb-offset)
                (+ start-y bulb-offset)
                bulb-size
-               bulb-size)
-    ))
+               bulb-size)))
 
-(defn draw-source-or-bulb-connections [g tile start-x start-y tile-size]
+(defn draw-source-or-bulb-connections
+  [g tile start-x start-y tile-size get-colour-for-con]
   (.setStroke g default-stroke)
-  (let [center-x (+ start-x (/ tile-size 2))
-        center-y (+ start-y (/ tile-size 2))]
+  (let [half (/ tile-size 2)
+        center-x (+ start-x half)
+        center-y (+ start-y half)]
     (doseq [con (:connection tile)]
-      (let [pos-diff (directions con)
+      (let [colour (get-colour-for-con con tile)
+            palette-colour (colour-rgbs colour)
+            pos-diff (directions con)
             con-dest (pos-add [center-x center-y]
                               (pos-scale-multiply pos-diff (/ tile-size 2)))
             [con-dest-x con-dest-y] con-dest]
+        (.setColor g palette-colour)
         (.drawLine g
                    center-x center-y
                    con-dest-x con-dest-y)))))
@@ -223,12 +319,14 @@
 
 (defmethod draw-specific-tile :source 
   [g tile start-x start-y tile-size]
+  (draw-source-or-bulb-connections g tile start-x start-y tile-size
+                                   (fn [dir tile]
+                                     ((tile :subwires) dir)))
   (let [palette-colour (colour-rgbs (:colour tile))
         source-size (/ tile-size 3)
         source-start-x (+ start-x source-size)
         source-start-y (+ start-y source-size)]
     (.setColor g palette-colour)
-    (draw-source-or-bulb-connections g tile start-x start-y tile-size)
     (.fillRect g
                source-start-x source-start-y
                source-size source-size)))
@@ -243,9 +341,11 @@
 
 (defmethod draw-specific-tile :bulb
   [g tile start-x start-y tile-size]
+  (draw-source-or-bulb-connections g tile start-x start-y tile-size
+                                   (fn [_ tile]
+                                     (:colour tile)))
   (let [palette-colour (colour-rgbs (:colour tile))]
     (.setColor g palette-colour)
-    (draw-source-or-bulb-connections g tile start-x start-y tile-size)
     (if (= (:colour tile) (:expected-colour tile))
       (draw-lit-bulb g 
                      palette-colour
@@ -254,14 +354,16 @@
                        (colour-rgbs (:expected-colour tile))
                        start-x start-y tile-size))))
 
+(defn draw-tile-border [g start-x start-y tile-size]
+  (.setStroke g (BasicStroke. 1))
+  (.setColor g Color/WHITE)
+  (.drawRect g start-x start-y tile-size tile-size))
+
 (defn draw-tile [g tile tile-size]
   (let [[pos-x pos-y] (:pos tile)
         start-x (* pos-x tile-size)
         start-y (* pos-y tile-size)]
-    (do
-      (.setStroke g (BasicStroke. 1))
-      (.setColor g Color/WHITE)
-      (.drawRect g start-x start-y tile-size tile-size))
+    (draw-tile-border g start-x start-y tile-size)
     (draw-specific-tile g tile start-x start-y tile-size)))
 
 (defn draw-board [g board tile-size]
@@ -344,6 +446,35 @@
     :connection [:east] :expected-colour :red}
    {:id 19 :pos [3 0] :type :source
     :connection [:west] :colour :green}
+
+   {:id 20 :pos [0 4] :type :source
+    :connection [:south] :colour :blue}
+   {:id 21 :pos [1 4] :type :wire
+    :connection [:west :east :south]}
+   {:id 22 :pos [2 4] :type :bulb
+    :connection [:west] :expected-colour :magenta}
+   {:id 23 :pos [1 5] :type :wire
+    :connection [:north :west :east]}
+   {:id 24 :pos [0 5] :type :wire
+    :connection [:north :south :east]}
+   {:id 25 :pos [2 5] :type :wire
+    :connection [:north :south :west]}
+   {:id 26 :pos [4 4] :type :wire
+    :connection [:west :east :south]}
+   {:id 27 :pos [5 4] :type :bulb
+    :connection [:west] :expected-colour :magenta}
+   {:id 28 :pos [4 5] :type :wire
+    :connection [:north :west :east]}
+   {:id 29 :pos [3 5] :type :wire
+    :connection [:north :south :east]}
+   {:id 30 :pos [5 5] :type :wire
+    :connection [:north :south :west]}
+   {:id 31 :pos [0 6] :type :wire
+    :connection [:north :south :east :west]}
+   {:id 32 :pos [3 6] :type :wire
+    :connection [:north :south :east :west]}
+   {:id 33 :pos [1 6] :type :source
+    :connection [:west] :colour :red}
    ])
 
 (defn start []
