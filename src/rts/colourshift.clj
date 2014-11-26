@@ -339,6 +339,14 @@
     (.setStroke g default-stroke)
     (draw-wire g connections start-x start-y tile-size)))
 
+(defmethod draw-specific-tile :twin-wire
+  [g tile start-x start-y tile-size]
+  (let [connections (into (hash-set) (:connection tile))
+        palette-colour (colour-rgbs (:colour tile))]
+    (.setColor g palette-colour)
+    (.setStroke g default-stroke)
+    (draw-wire g connections start-x start-y tile-size)))
+
 (defmethod draw-specific-tile :bulb
   [g tile start-x start-y tile-size]
   (draw-source-or-bulb-connections g tile start-x start-y tile-size
@@ -367,7 +375,7 @@
     (draw-specific-tile g tile start-x start-y tile-size)))
 
 (defn draw-board [g board tile-size]
-  (doseq [tile (dye-board board)]
+  (doseq [tile (sort-by :id (dye-board board))]
     (draw-tile g tile tile-size)))
 
 (defn clear-screen [g max-x max-y]
@@ -475,6 +483,21 @@
     :connection [:north :south :east :west]}
    {:id 33 :pos [1 6] :type :source
     :connection [:west] :colour :red}
+
+   {:id 34 :pos [0 7] :type :twin-wire
+    :connection [:north :south]}
+   {:id 35 :pos [0 7] :type :twin-wire
+    :connection [:west :east]}
+   {:id 36 :pos [2 6] :type :wire
+    :connection [:north :south]}
+   {:id 37 :pos [2 7] :type :twin-wire
+    :connection [:west :north]}
+   {:id 38 :pos [2 7] :type :twin-wire
+    :connection [:east :south]}
+   {:id 39 :pos [1 7] :type :twin-wire
+    :connection [:west :south]}
+   {:id 40 :pos [1 7] :type :twin-wire
+    :connection [:east :north]}
    ])
 
 (defn start []
