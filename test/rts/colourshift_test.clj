@@ -3,6 +3,24 @@
             [rts.engine :refer :all])
   (:use rts.colourshift))
 
+(def quick-check-times 100)
+
+(defn get-all-non-reflexive-pairings [greater-than-or-equal-to-fn list]
+  (mapcat (fn [t1]
+            (map (fn [t2]
+                   #{t1 t2})
+                 (remove #(greater-than-or-equal-to-fn % t1) list)))
+          list))
+
+(defn no-adjacent-pairs-in [tile-list]
+  (let [ge-by-id (fn [t1 t2]
+                   (>= (:id t1) (:id t2)))
+        pairs (get-all-non-reflexive-pairings ge-by-id tile-list)]
+    (not-any? (fn [pair]
+                (let [[t1 t2] (vec pair)]
+                  (is-adjacent t1 t2)))
+              pairs)))
+
 (deftest dye-one-source-one-bulb-one-bi-wire
   (let [raw-board [{:id 0 :pos [0 0] :type :bulb
                     :connection [:east] }
@@ -247,3 +265,44 @@
         dyed-board (dye-board raw-board)
         source-1-subwires (:subwires (find-by-id 0 dyed-board))]
     (is (= source-1-subwires {:east :yellow :south :red}))))
+
+(deftest check-getting-all-non-reflexive-pairings
+  (is (= (into (hash-set) (get-all-non-reflexive-pairings >= [1 2 3 4]))
+         #{#{1 2} #{1 3} #{1 4} #{2 3} #{2 4} #{3 4}})))
+
+(deftest pick-at-most-n-non-adjacent-tiles-on-cramped-subgraph
+  (let [subgraph [{:id 0 :pos [0 0] :type :wire
+                   :connection [:east]}
+                  {:id 1 :pos [1 0] :type :wire
+                   :connection [:east :west :south]}
+                  {:id 2 :pos [2 0] :type :wire
+                   :connection [:east :west]}
+                  {:id 3 :pos [3 0] :type :wire
+                   :connection [:west]}
+                  {:id 4 :pos [1 1] :type :wire
+                   :connection [:north]}]]
+    (dotimes [_ quick-check-times]
+      (let [picked-tiles (pick-at-most-n-non-adjacent-tiles subgraph 3)]
+        (is (<= (count picked-tiles) 3))
+        (is (no-adjacent-pairs-in picked-tiles))))))
+
+(deftest correctly-assert-no-adjacent-pairs-positive
+  (let [tile-set [{:id 0 :pos [0 0] :type :wire
+                   :connection [:north]}
+                  {:id 1 :pos [2 0] :type :wire
+                   :connection [:west]}]]
+    (is (no-adjacent-pairs-in tile-set))))
+
+(deftest correctly-assert-no-adjacent-pairs-negative
+  (let [tile-set [{:id 0 :pos [0 0] :type :wire
+                   :connection [:north]}
+                  {:id 1 :pos [1 0] :type :wire
+                   :connection [:west]}]]
+    (is (not (no-adjacent-pairs-in tile-set)))))
+
+(deftest any-two-seeds-are-not-adjacent
+  (dotimes [_ quick-check-times]
+    (let [[seeds unoccupied] (generate-seeds 10 10 9 8)]
+      (is (= 26 (count seeds))) ;; 9 * 2 + 8
+      (is (= 83 (count unoccupied))) ;; 10 * 10 - 9 - 8
+      (is (no-adjacent-pairs-in seeds)))))

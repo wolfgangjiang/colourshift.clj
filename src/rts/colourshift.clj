@@ -48,12 +48,17 @@
 (defn pos-scale-multiply [[x y] efficient]
   [(* x efficient) (* y efficient)])
 
+(defn pos-diff [p1 p2]
+  (let [[x1 y1] p1
+        [x2 y2] p2]
+    [(- x1 x2) (- y1 y2)]))
+
 (defn find-by-id [id tile-list]
   (first (filter #(= id (:id %)) tile-list)))
 
 (defn subtract-by-id [total unwanted]
-  (let [unwanted-pos-set (into (hash-set) (map :id unwanted))
-        remaining (remove #(contains? unwanted-pos-set (:id %)) total)]
+  (let [unwanted-id-set (into (hash-set) (map :id unwanted))
+        remaining (remove #(contains? unwanted-id-set (:id %)) total)]
     remaining))
 
 (defn find-by-connection [dir tile tile-list]
@@ -71,6 +76,14 @@
         (if (empty? connected)
           nil
           (first connected))))))
+
+(defn is-connected [t1 t2]
+  (some #(not (nil? (find-by-connection % t1 [t2])))
+        (:connection t1)))
+
+(defn is-adjacent [t1 t2]
+  (let [[dx dy] (pos-diff (:pos t1) (:pos t2))]
+    (= 1 (Math/abs (+ dx dy)))))
 
 (defn get-neighbors-by-connection [tile tile-list]
   (let [connected-tiles (map #(find-by-connection % tile tile-list) (keys directions))]
@@ -146,6 +159,80 @@
                                             subtract-by-id)
         dyed-subgraphs (map dye-subgraph subgraphs)]
     (apply concat dyed-subgraphs)))
+
+;;;; ============== generation =========================
+
+(defn remove-leading-adjacent [picked remaining]
+  (drop-while (fn [t]
+                (some #(is-adjacent t %) picked))
+              remaining))
+
+(defn pick-at-most-n-non-adjacent-tiles-recur [picked remaining n]
+  (let [good-remaining (remove-leading-adjacent picked remaining)]
+    (cond
+     (>= (count picked) n) picked
+     (empty? good-remaining) picked
+     :t (recur (conj picked (first good-remaining))
+               (rest good-remaining)
+               n))))
+
+(defn pick-at-most-n-non-adjacent-tiles [tile-list n]
+  (pick-at-most-n-non-adjacent-tiles-recur #{} 
+                                           (shuffle tile-list)
+                                           n))
+
+(defn random-twinwire-connection []
+  (let [options [[[:north :east] [:south :west]]
+                 [[:north :west] [:south :east]]
+                 [[:north :south] [:west :east]]]]
+    (rand-nth options)))
+
+(defn random-normal-wire-connection []
+  (let [options [[:north :south]
+                 [:north :east]
+                 [:north :west]
+                 [:east :west]
+                 [:east :south]
+                 [:west :south]
+                 [:north :south :east]
+                 [:north :south :west]
+                 [:east :west :north]
+                 [:east :west :south]
+                 [:north :south :east :west]]]
+    (rand-nth options)))
+
+(defn generate-empty-board [x-size y-size]
+  (mapcat (fn [x]
+            (map (fn [y]
+                   {:id (+ x (* y x-size))
+                    :pos [x y]})
+                 (range y-size)))
+          (range x-size)))
+
+(defn generate-seeds [x-size y-size twinwire-count normal-wire-count]
+  (let [all-tiles (generate-empty-board x-size y-size)
+        seed-count (+ twinwire-count normal-wire-count)
+        picked (pick-at-most-n-non-adjacent-tiles all-tiles seed-count)
+        twinwire-tiles (mapcat (fn [proto-tile]
+                                 (let [[con1 con2] (random-twinwire-connection)]
+                                   [{:id (:id proto-tile)
+                                     :pos (:pos proto-tile)
+                                     :type :twin-wire
+                                     :connection con1}
+                                    {:id (:id proto-tile)
+                                     :pos (:pos proto-tile)
+                                     :type :twin-wire
+                                     :connection con2}]))
+                               (take twinwire-count picked))
+        normal-wire-tiles (map (fn [proto-tile]
+                                 {:id (:id proto-tile)
+                                  :pos (:pos proto-tile)
+                                  :type :wire
+                                  :connection (random-normal-wire-connection)})
+                               (drop twinwire-count picked))
+        seeds (concat twinwire-tiles normal-wire-tiles)
+        unoccupied (subtract-by-id all-tiles seeds)]
+    [seeds unoccupied]))
 
 ;;;; ================== rendering ======================
 
