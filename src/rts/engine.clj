@@ -1,5 +1,6 @@
 (ns rts.engine
-  (:import [java.util Date]))
+  (:import [java.util Date]
+           [java.awt RenderingHints]))
 
 (defn trace [info obj]
   (prn info obj)
@@ -61,10 +62,20 @@
       (.createBufferStrategy 2))
     frame))
 
+(defn setup-anti-aliasing [g]
+  (let [hints (RenderingHints.
+               RenderingHints/KEY_ANTIALIASING
+               RenderingHints/VALUE_ANTIALIAS_ON)]
+    (.setRenderingHints g hints)))
+
+(defn init-graphics-2d [g]
+  (setup-anti-aliasing g))
+
 (defmacro with-graphics-2d [window g & body]
   `(let [bs# (.getBufferStrategy ~window)
          ~g (.getDrawGraphics bs#)]
      (try
+       (init-graphics-2d ~g)
        ~@body
        (finally (.dispose ~g)))
      (.show bs#)
