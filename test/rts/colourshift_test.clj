@@ -3,7 +3,7 @@
             [rts.engine :refer :all])
   (:use rts.colourshift))
 
-(def quick-check-times 100)
+(def quick-check-times 10)
 
 (defn get-all-non-reflexive-pairings [greater-than-or-equal-to-fn list]
   (mapcat (fn [t1]
@@ -20,6 +20,9 @@
                 (let [[t1 t2] (vec pair)]
                   (is-adjacent t1 t2)))
               pairs)))
+
+(defn get-id-set [tile-list]
+  (into (hash-set) (map :id tile-list)))
 
 (deftest dye-one-source-one-bulb-one-bi-wire
   (let [raw-board [{:id 0 :pos [0 0] :type :bulb
@@ -306,3 +309,109 @@
       (is (= 26 (count seeds))) ;; 9 * 2 + 8
       (is (= 83 (count unoccupied))) ;; 10 * 10 - 9 - 8
       (is (no-adjacent-pairs-in seeds)))))
+
+(deftest one-spurt-growth-of-subgraph-normal
+  (let [subgraph-before [{:id 0 :pos [0 0] :type :wire
+                          :connection [:east]}
+                         {:id 1 :pos [1 0] :type :wire
+                          :connection [:west]}]
+        proto-pool-before [{:id 2 :pos [0 1]}]
+        [proto-pool-after subgraph-after]
+        (subgraph-one-spurt-grow proto-pool-before subgraph-before)
+        substantiated-tile (find-by-id 2 subgraph-after)
+        seed-after-growth (find-by-id 0 subgraph-after)
+        seed-after-growth-connection (into (hash-set) (:connection seed-after-growth))]
+    (is (= (count subgraph-after) 3))
+    (is (= substantiated-tile {:id 2 :pos [0 1]
+                               :connection [:north]}))
+    (is (= seed-after-growth-connection #{:east :south}))
+    (is (empty? proto-pool-after))))
+
+(deftest one-spurt-growth-of-subgraph-multi-options
+  (let [subgraph-before [{:id 0 :pos [0 0] :type :wire
+                          :connection [:east]}
+                         {:id 1 :pos [1 0] :type :wire
+                          :connection [:west]}]
+        proto-pool-before [{:id 2 :pos [0 1]}
+                          {:id 3 :pos [2 0]}]
+        [proto-pool-after subgraph-after]
+        (subgraph-one-spurt-grow proto-pool-before subgraph-before)
+        subgraph-after-ids (get-id-set subgraph-after)]
+    (is (or (= subgraph-after-ids #{0 1 2})
+            (= subgraph-after-ids #{0 1 3})))
+    (is (= (count proto-pool-after) 1))))
+           
+(deftest one-spurt-growth-of-subgraph-no-room-for-growth
+  (let [subgraph-before [{:id 0 :pos [0 0] :type :wire
+                          :connection [:east :south]}
+                         {:id 1 :pos [1 0] :type :wire
+                          :connection [:west :east]}]
+        proto-pool-before [{:id 5 :pos [10 10]}]
+        [proto-pool-after subgraph-after]
+        (subgraph-one-spurt-grow proto-pool-before subgraph-before)
+        subgraph-after-ids (get-id-set subgraph-after)]
+    (is (= subgraph-after-ids #{0 1}))
+    (is (= (count proto-pool-before) 1))))
+
+(deftest initialize-subgraph-normal
+  (let [seed {:id 0 :pos [1 1] :type :twin-wire
+              :connection [:east :south]}
+        proto-pool-before [{:id 1 :pos [1 2]}
+                           {:id 2 :pos [2 1]}
+                           {:id 3 :pos [0 1]}]
+        [proto-pool-after subgraph]
+        (initialize-subgraph proto-pool-before seed)
+        subgraph-ids (get-id-set subgraph)
+        proto-pool-after-ids (get-id-set proto-pool-after)
+        tile-1-in-subgraph (find-by-id 1 subgraph)
+        tile-2-in-subgraph (find-by-id 2 subgraph)]
+    (is (= proto-pool-after-ids #{3}))
+    (is (= subgraph-ids #{0 1 2}))
+    (is (= tile-1-in-subgraph {:id 1 :pos [1 2]
+                               :connection [:north]}))
+    (is (= tile-2-in-subgraph {:id 2 :pos [2 1]
+                               :connection [:west]}))))
+
+(deftest initialize-subgraph-when-cannot-satisfy-seed-connection
+  (let [seed {:id 0 :pos [1 1] :type :wire
+              :connection [:west :east]}
+        proto-pool-before [{:id 1 :pos [1 0]}]
+        [proto-pool-after subgraph]
+        (initialize-subgraph proto-pool-before seed)
+        proto-pool-after-ids (get-id-set proto-pool-after)]
+    (is (empty? subgraph))
+    (is (= proto-pool-after-ids #{0 1}))))
+
+(deftest there-is-expected-number-of-poses-in-generated-solution-board
+  (dotimes [_ quick-check-times]
+    (let [solution (generate-solution 10 10 9 8)]
+      (is (= (count (distinct (map :pos solution))) 100)))))
+
+(deftest all-connections-are-two-sided-in-generated-solution-board
+  (dotimes [_ quick-check-times]
+    (let [solution (generate-solution 10 10 9 8)]
+      (doseq [tile solution]
+        (let [connection (:connection tile)
+              connected-neighbors (get-neighbors-by-connection tile solution)]
+          (is (= (count connection)
+                 (count (distinct connection)))
+              (is (= (count connected-neighbors)
+                     (count (distinct connection))))))))))
+
+(deftest there-is-no-such-subgraph-that-has-only-one-tile
+  (dotimes [_ (* 20 quick-check-times)]
+    (let [solution (generate-solution 10 10 9 8)
+          subgraphs (find-connected-subgraphs-default-setting solution)]
+      (prn ".................................")
+      (doseq [subg subgraphs]
+        (when (= 1 (count subg))
+          (prn subg)
+          (let [good-neighbors (get-neighbors-by-connection (first subg) solution)
+                best-neighbor (rand-nth good-neighbors)
+                true-subgraph (breadth-first-traverse (first subg)
+                                                          solution
+                                                          get-neighbors-by-connection
+                                                          subtract-by-id)]
+            (prn :good good-neighbors)
+            (prn :true-sub true-subgraph)))
+        (is (> (count subg) 1))))))

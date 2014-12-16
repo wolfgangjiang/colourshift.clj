@@ -9,6 +9,11 @@
                  :north [0 -1]
                  :south [0 1]})
 
+(def direction-names {[1 0] :east
+                      [-1 0] :west
+                      [0 -1] :north
+                      [0 1] :south})
+
 (def opposites {:east :west
                 :west :east
                 :north :south
@@ -56,6 +61,10 @@
 (defn find-by-id [id tile-list]
   (first (filter #(= id (:id %)) tile-list)))
 
+;;; CAUTION: incorrect in the face of twin-wires
+(defn find-by-pos [pos tile-list]
+  (first (filter #(= pos (:pos %)) tile-list)))
+
 (defn subtract-by-id [total unwanted]
   (let [unwanted-id-set (into (hash-set) (map :id unwanted))
         remaining (remove #(contains? unwanted-id-set (:id %)) total)]
@@ -82,12 +91,17 @@
         (:connection t1)))
 
 (defn is-adjacent [t1 t2]
-  (let [[dx dy] (pos-diff (:pos t1) (:pos t2))]
-    (= 1 (Math/abs (+ dx dy)))))
+  (let [dpos (pos-diff (:pos t1) (:pos t2))]
+    (contains? direction-names dpos)))
 
 (defn get-neighbors-by-connection [tile tile-list]
   (let [connected-tiles (map #(find-by-connection % tile tile-list) (keys directions))]
     (remove nil? connected-tiles)))
+
+(defn get-pos-on-dir [origin-pos dir]
+  (let [pos-diff (directions dir)
+        pos-on-dir (pos-add origin-pos pos-diff)]
+    pos-on-dir))
 
 (defn breadth-first-traverse [start-tile all-tiles get-neighbors-of subtract]
   (let [breadth-first-recur
@@ -97,12 +111,12 @@
             (let [seed (first open-list)
                   raw-neighbors (get-neighbors-of seed raw-list)
                   unvisited-neighbors (subtract raw-neighbors (concat open-list closed-list))
-                  new-open-list (concat unvisited-neighbors (rest open-list))
+                  new-open-list (concat (rest open-list) unvisited-neighbors)
                   new-closed-list (conj closed-list seed)
                   new-raw-list (subtract raw-list unvisited-neighbors)]
               (recur new-open-list new-closed-list new-raw-list))))
         unused-tiles (subtract all-tiles [start-tile])]
-    (breadth-first-recur [start-tile] [] all-tiles)))
+    (breadth-first-recur [start-tile] [] unused-tiles)))
 
 (defn find-connected-subgraphs [all-tiles get-neighbors-of subtract]
   (let [find-connected-subgraphs-recur
@@ -117,6 +131,12 @@
                   unused-tiles (subtract remaining-tiles new-subgraph)]
               (recur unused-tiles (conj subgraphs new-subgraph)))))]
     (find-connected-subgraphs-recur all-tiles [])))
+
+(defn find-connected-subgraphs-default-setting [all-tiles]
+  (find-connected-subgraphs all-tiles
+                            get-neighbors-by-connection
+                            subtract-by-id))
+  
 
 (defn dye-subwires-of-a-source [source-tile tile-list]
   (let [subwire-colour-pairs (map (fn [dir]
@@ -154,9 +174,7 @@
       dye-subgraph-source-subwires))
 
 (defn dye-board [board]
-  (let [subgraphs (find-connected-subgraphs board
-                                            get-neighbors-by-connection
-                                            subtract-by-id)
+  (let [subgraphs (find-connected-subgraphs-default-setting board)
         dyed-subgraphs (map dye-subgraph subgraphs)]
     (apply concat dyed-subgraphs)))
 
@@ -201,16 +219,23 @@
                  [:north :south :east :west]]]
     (rand-nth options)))
 
-(defn generate-empty-board [x-size y-size]
+(defn new-counter []
+  (let [n (atom 0)]
+    (fn []
+      (swap! n inc)
+      @n)))
+
+(defn generate-empty-board [x-size y-size generate-id]
   (mapcat (fn [x]
             (map (fn [y]
-                   {:id (+ x (* y x-size))
+                   {:id (generate-id)
                     :pos [x y]})
                  (range y-size)))
           (range x-size)))
 
 (defn generate-seeds [x-size y-size twinwire-count normal-wire-count]
-  (let [all-tiles (generate-empty-board x-size y-size)
+  (let [generate-id (new-counter)
+        all-tiles (generate-empty-board x-size y-size generate-id)
         seed-count (+ twinwire-count normal-wire-count)
         picked (pick-at-most-n-non-adjacent-tiles all-tiles seed-count)
         twinwire-tiles (mapcat (fn [proto-tile]
@@ -219,7 +244,7 @@
                                      :pos (:pos proto-tile)
                                      :type :twin-wire
                                      :connection con1}
-                                    {:id (:id proto-tile)
+                                    {:id (generate-id)
                                      :pos (:pos proto-tile)
                                      :type :twin-wire
                                      :connection con2}]))
@@ -233,6 +258,124 @@
         seeds (concat twinwire-tiles normal-wire-tiles)
         unoccupied (subtract-by-id all-tiles seeds)]
     [seeds unoccupied]))
+
+(defn get-candidate-pairs-for-growth [subgraph proto-tiles]
+  (let [all-pairs (mapcat (fn [sg-tile]
+                            (map (fn [p-tile]
+                                   [sg-tile p-tile])
+                                 proto-tiles))
+                          subgraph)]
+    (filter (fn [[sg-tile p-tile]]
+              (is-adjacent sg-tile p-tile)) all-pairs)))
+
+(defn pick-for-growth [subgraph proto-tiles]
+  (let [candidate-pairs (get-candidate-pairs-for-growth subgraph proto-tiles)]
+    (if (empty? candidate-pairs)
+      [nil nil]
+      (rand-nth candidate-pairs))))
+
+(defn substantiate-for-growth [seed picked-proto-tile]
+  (let [dpos (pos-diff (:pos picked-proto-tile) (:pos seed))
+        dir (direction-names dpos)
+        seed-new-connection (vec (distinct (conj (:connection seed) dir)))
+        opposite-dir (opposites dir)
+        picked-proto-tile-connection [opposite-dir]
+        grown-seed (assoc seed :connection seed-new-connection)
+        substantiated-tile (assoc picked-proto-tile :connection
+                                  picked-proto-tile-connection)]
+    [grown-seed substantiated-tile]))
+
+(defn subgraph-grow-with-seed-and-picked [proto-pool subgraph seed picked-proto-tile]
+  (let [[grown-seed substantiated-tile] (substantiate-for-growth seed picked-proto-tile)
+        subgraph-without-seed (subtract-by-id subgraph [seed])
+        new-subgraph (concat subgraph-without-seed [grown-seed substantiated-tile])
+        remaining-proto-pool (subtract-by-id proto-pool [picked-proto-tile])]
+    [remaining-proto-pool new-subgraph]))
+
+(defn subgraph-one-spurt-grow [proto-pool subgraph]
+  (let [[seed picked-proto-tile] (pick-for-growth subgraph proto-pool)]
+    (if (nil? picked-proto-tile)
+      [proto-pool subgraph]
+      (subgraph-grow-with-seed-and-picked proto-pool subgraph seed picked-proto-tile))))
+
+(defn initialize-subgraph-with-required-poses [proto-pool seed required-poses]
+  ;; there is no twin-wires in proto-pool, so find-by-pos is safe here.
+  (reduce (fn [[proto-pool subgraph] new-pos]
+            (let [new-tile (find-by-pos new-pos proto-pool)]
+              (subgraph-grow-with-seed-and-picked proto-pool subgraph seed new-tile)))
+          [proto-pool [seed]]
+          required-poses))
+
+(defn give-up-subgraph [proto-pool seed]
+  ;; When one of a twin-wire tile is given-up, the other must be
+  ;; given-up as well.
+  (let [seed-as-proto-tile {:id (:id seed)
+                            :pos (:pos seed)}
+        new-proto-pool (conj proto-pool seed-as-proto-tile)]
+    [new-proto-pool []]))
+
+(defn initialize-subgraph [proto-pool seed]
+  (let [proto-pool-pos-set (into (hash-set) (map :pos proto-pool))
+        required-poses (map #(get-pos-on-dir (:pos seed) %)
+                            (:connection seed))]
+    (if (every? #(contains? proto-pool-pos-set %) required-poses)
+      (initialize-subgraph-with-required-poses proto-pool seed required-poses)
+      (give-up-subgraph proto-pool seed))))
+
+(defn initialize-subgraph-list-recur [proto-pool subgraphs seed-list]
+  (if (empty? seed-list)
+    [proto-pool subgraphs]
+    (let [seed (first seed-list)
+          [remaining-proto-pool subg] (initialize-subgraph proto-pool seed)]
+      (recur remaining-proto-pool (conj subgraphs subg) (rest seed-list)))))
+
+(defn initialize-subgraph-list [proto-pool seed-list]
+  (initialize-subgraph-list-recur proto-pool [] seed-list))
+
+(defn grow-subgraph-info [proto-pool old-subgraph-info]
+  (let [{:keys [destiny-number subgraph-tiles]} old-subgraph-info
+        [new-proto-pool new-subgraph-tiles]
+        (subgraph-one-spurt-grow proto-pool subgraph-tiles)
+        new-subgraph-info {:destiny-number destiny-number
+                           :subgraph-tiles new-subgraph-tiles}]
+    [new-proto-pool new-subgraph-info]))
+
+(defn grow-subgraph-info-if-destiny-permits [proto-pool subgraph-info]
+  (let [{:keys [destiny-number subgraph-tiles]} subgraph-info
+        destiny-trial (rand)]
+    (if (< destiny-trial destiny-number)
+      [proto-pool subgraph-info]
+      (grow-subgraph-info proto-pool subgraph-info))))
+
+(defn generate-solution-subgraph-recur [proto-pool new-subgraph-infos old-subgraph-infos]
+  (if (empty? old-subgraph-infos)
+    [proto-pool new-subgraph-infos]
+    (let [old-info (first old-subgraph-infos)
+          [new-proto-pool new-info] (grow-subgraph-info-if-destiny-permits proto-pool old-info)]
+      (recur new-proto-pool
+             (conj new-subgraph-infos new-info)
+             (rest old-subgraph-infos)))))
+
+(defn generate-solution-recur [proto-pool subgraph-info-list]
+  (if (empty? proto-pool)
+    subgraph-info-list
+    (let [[remaining-proto-pool new-subgraph-info-list]
+          (generate-solution-subgraph-recur proto-pool [] subgraph-info-list)]
+      (recur remaining-proto-pool new-subgraph-info-list))))
+
+(defn generate-solution [x-size y-size twinwire-count normal-wire-count]
+  (let [[seed-list initial-proto-pool]
+        (generate-seeds x-size y-size twinwire-count normal-wire-count)
+        [second-proto-pool subgraph-list]
+        (initialize-subgraph-list initial-proto-pool seed-list)
+        subgraph-info-list (map (fn [subg]
+                                  {:destiny-number (rand)
+                                   :subgraph-tiles subg})
+                                subgraph-list)
+        mature-subgraph-info-list (generate-solution-recur second-proto-pool
+                                                           subgraph-info-list)
+        mature-subgraph-list (map :subgraph-tiles mature-subgraph-info-list)]
+    (apply concat mature-subgraph-list)))
 
 ;;;; ================== rendering ======================
 
@@ -250,7 +393,7 @@
     (.drawLine g 
                start-x (+ start-y half)
                (+ start-x tile-size) (+ start-y half))))
-             
+
 (defmethod draw-wire #{:north :south}
   [g connections start-x start-y tile-size]
   (let [half (/ tile-size 2)]
@@ -587,9 +730,11 @@
     :connection [:east :north]}
    ])
 
+(def random-solution-board (generate-solution 10 10 9 8))
+
 (defn start []
   (main-loop (new-colourshift {:max-x 500
                                :max-y 500
                                :best-fps 60
                                :tile-size 50
-                               :initial-board manual-test-board})))
+                               :initial-board random-solution-board})))
