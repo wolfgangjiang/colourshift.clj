@@ -24,6 +24,19 @@
 (defn get-id-set [tile-list]
   (into (hash-set) (map :id tile-list)))
 
+(defn has-cycle-recur [visited-path all-tiles]
+  (if (< (count (get-id-set visited-path)) (count visited-path))
+   true
+   (let [seed (first visited-path)
+         parent (second visited-path)
+         neighbors (get-neighbors-by-connection seed all-tiles)
+         unknown-neighbors (subtract-by-id neighbors [parent])]
+     (some #(has-cycle-recur (cons % visited-path) all-tiles)
+           unknown-neighbors))))
+
+(defn has-cycle [subgraph]
+  (has-cycle-recur [(first subgraph)] subgraph))
+
 (deftest dye-one-source-one-bulb-one-bi-wire
   (let [raw-board [{:id 0 :pos [0 0] :type :bulb
                     :connection [:east] }
@@ -235,7 +248,7 @@
         from-tile (find-by-id 0 board)]
     (is (= nil (find-by-connection :west from-tile board)))))
 
-;; active non-connection: from-tile havs a connection to the
+;; active non-connection: from-tile has a connection to the
 ;; direction of the target tile, but target tile does not have a
 ;; connection to the from tile.
 (deftest finding-by-connection-handles-passive-non-connection-well
@@ -305,9 +318,9 @@
 
 (deftest any-two-seeds-are-not-adjacent
   (dotimes [_ quick-check-times]
-    (let [[seeds unoccupied] (generate-seeds 10 10 9 8)]
-      (is (= 26 (count seeds))) ;; 9 * 2 + 8
-      (is (= 83 (count unoccupied))) ;; 10 * 10 - 9 - 8
+    (let [[seeds unoccupied] (generate-seeds 10 10 11)]
+      (is (= 11 (count seeds)))
+      (is (= 89 (count unoccupied)))
       (is (no-adjacent-pairs-in seeds)))))
 
 (deftest one-spurt-growth-of-subgraph-normal
@@ -353,65 +366,63 @@
     (is (= subgraph-after-ids #{0 1}))
     (is (= (count proto-pool-before) 1))))
 
-(deftest initialize-subgraph-normal
-  (let [seed {:id 0 :pos [1 1] :type :twin-wire
-              :connection [:east :south]}
-        proto-pool-before [{:id 1 :pos [1 2]}
-                           {:id 2 :pos [2 1]}
-                           {:id 3 :pos [0 1]}]
-        [proto-pool-after subgraph]
-        (initialize-subgraph proto-pool-before seed)
-        subgraph-ids (get-id-set subgraph)
-        proto-pool-after-ids (get-id-set proto-pool-after)
-        tile-1-in-subgraph (find-by-id 1 subgraph)
-        tile-2-in-subgraph (find-by-id 2 subgraph)]
-    (is (= proto-pool-after-ids #{3}))
-    (is (= subgraph-ids #{0 1 2}))
-    (is (= tile-1-in-subgraph {:id 1 :pos [1 2]
-                               :connection [:north]}))
-    (is (= tile-2-in-subgraph {:id 2 :pos [2 1]
-                               :connection [:west]}))))
-
-(deftest initialize-subgraph-when-cannot-satisfy-seed-connection
-  (let [seed {:id 0 :pos [1 1] :type :wire
-              :connection [:west :east]}
-        proto-pool-before [{:id 1 :pos [1 0]}]
-        [proto-pool-after subgraph]
-        (initialize-subgraph proto-pool-before seed)
-        proto-pool-after-ids (get-id-set proto-pool-after)]
-    (is (empty? subgraph))
-    (is (= proto-pool-after-ids #{0 1}))))
-
 (deftest there-is-expected-number-of-poses-in-generated-solution-board
   (dotimes [_ quick-check-times]
-    (let [solution (generate-solution 10 10 9 8)]
+    (let [solution (generate-solution 10 10 11)
+          distinct-ids (get-id-set solution)]
+      (is (= (count distinct-ids) (count solution))) ;; no duplicate ids
       (is (= (count (distinct (map :pos solution))) 100)))))
 
 (deftest all-connections-are-two-sided-in-generated-solution-board
   (dotimes [_ quick-check-times]
-    (let [solution (generate-solution 10 10 9 8)]
+    (let [solution (generate-solution 10 10 11)]
       (doseq [tile solution]
         (let [connection (:connection tile)
               connected-neighbors (get-neighbors-by-connection tile solution)]
           (is (= (count connection)
-                 (count (distinct connection)))
-              (is (= (count connected-neighbors)
-                     (count (distinct connection))))))))))
+                 (count (distinct connection))))
+          (is (= (count connected-neighbors)
+                 (count (distinct connection)))))))))
 
 (deftest there-is-no-such-subgraph-that-has-only-one-tile
-  (dotimes [_ (* 20 quick-check-times)]
-    (let [solution (generate-solution 10 10 9 8)
+  (dotimes [_ quick-check-times]
+    (let [solution (generate-solution 10 10 11)
           subgraphs (find-connected-subgraphs-default-setting solution)]
-      (prn ".................................")
       (doseq [subg subgraphs]
-        (when (= 1 (count subg))
-          (prn subg)
-          (let [good-neighbors (get-neighbors-by-connection (first subg) solution)
-                best-neighbor (rand-nth good-neighbors)
-                true-subgraph (breadth-first-traverse (first subg)
-                                                          solution
-                                                          get-neighbors-by-connection
-                                                          subtract-by-id)]
-            (prn :good good-neighbors)
-            (prn :true-sub true-subgraph)))
         (is (> (count subg) 1))))))
+
+(deftest biggest-subgraph-is-at-least-twice-size-as-smallest-one
+  (dotimes [_ quick-check-times]
+    (let [solution (generate-solution 10 10 11)
+          subgraphs (find-connected-subgraphs-default-setting solution)
+          subgraph-sizes (sort (map count subgraphs))
+          min-size (first subgraph-sizes)
+          max-size (last subgraph-sizes)]
+      (is (>= max-size (* 2 min-size))))))
+  
+(deftest correctly-detects-graph-cycle-positive
+  (let [subgraph [{:id 0 :pos [0 0]
+                   :connection [:east :south]}
+                  {:id 1 :pos [1 0]
+                   :connection [:west :south]}
+                  {:id 2 :pos [0 1]
+                   :connection [:east :north]}
+                  {:id 3 :pos [1 1]
+                   :connection [:west :north]}]]
+    (is (has-cycle subgraph))))
+
+(deftest correctly-detects-graph-cycle-negative
+  (let [subgraph [{:id 0 :pos [0 0]
+                   :connection [:east :south]}
+                  {:id 1 :pos [1 0]
+                   :connection [:west :south]}
+                  {:id 2 :pos [0 1]
+                   :connection [:east :north]}]]
+    (is (not (has-cycle subgraph)))))
+
+(deftest no-cycles-in-any-subgraphs-in-generated-solution-board
+  (dotimes [_ quick-check-times]
+    (let [solution (generate-solution 10 10 11)
+          subgraphs (find-connected-subgraphs-default-setting solution)]
+      (doseq [subg subgraphs]
+        (is (not (has-cycle subg)))))))
