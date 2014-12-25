@@ -94,6 +94,25 @@
   (let [dpos (pos-diff (:pos t1) (:pos t2))]
     (contains? direction-names dpos)))
 
+(defn is-of-type [tile type]
+  (= (:type tile) type))
+
+(defn is-bulb [tile]
+  (is-of-type tile :bulb))
+
+(defn is-source [tile]
+  (is-of-type tile :source))
+
+(defn is-twin-wire [tile]
+  (is-of-type tile :twin-wire))
+
+(defn get-tiles-on-pos [pos tile-list]
+  (filter #(= pos (:pos %)) tile-list))
+
+(defn is-shared-pos [pos tile-list]
+  (let [tiles-count-on-pos (count (get-tiles-on-pos pos tile-list))]
+    (> tiles-count-on-pos 1)))
+
 (defn get-neighbors-by-connection [tile tile-list]
   (let [connected-tiles (map #(find-by-connection % tile tile-list) (keys directions))]
     (remove nil? connected-tiles)))
@@ -150,7 +169,7 @@
     (into (hash-map) valid-pairs)))
 
 (defn blended-colour-of-subgraph [subgraph]
-  (let [sources (filter #(= :source (:type %)) subgraph)
+  (let [sources (filter is-source subgraph)
         colours (into (hash-set) (map :colour sources))
         blended-colour (get blendings colours)]
     blended-colour))
@@ -158,14 +177,14 @@
 (defn dye-subgraph-wires-and-bulbs [tile-list]
   (let [blended-colour (blended-colour-of-subgraph tile-list)]
     (map (fn [tile]
-           (if (= :source (:type tile))
+           (if (is-source tile)
              tile
              (assoc tile :colour blended-colour)))
          tile-list)))  
 
 (defn dye-subgraph-source-subwires [tile-list]
   (map (fn [tile]
-         (if (= :source (:type tile))
+         (if (is-source tile)
            (assoc tile :subwires (dye-subwires-of-a-source tile tile-list))
            tile))
        tile-list))
@@ -243,19 +262,22 @@
   (let [all-tiles (generate-empty-board x-size y-size)
         picked (pick-at-most-n-non-adjacent-tiles all-tiles seed-count)
         seeds (map (fn [proto-tile]
-                          {:id (:id proto-tile)
-                           :pos (:pos proto-tile)
-                           :connection []})
-                        picked)
+                     {:id (:id proto-tile)
+                      :pos (:pos proto-tile)
+                      :connection []})
+                   picked)
         unoccupied (subtract-by-id all-tiles seeds)]
     [seeds unoccupied]))
 
+(defn get-all-pairings [col-1 col-2]
+  (mapcat (fn [item-1]
+            (map (fn [item-2]
+                   [item-1 item-2])
+                 col-2))
+          col-1))
+
 (defn get-candidate-pairs-for-growth [subgraph proto-tiles]
-  (let [all-pairs (mapcat (fn [sg-tile]
-                            (map (fn [p-tile]
-                                   [sg-tile p-tile])
-                                 proto-tiles))
-                          subgraph)]
+  (let [all-pairs (get-all-pairings subgraph proto-tiles)]
     (filter (fn [[sg-tile p-tile]]
               (is-adjacent sg-tile p-tile)) all-pairs)))
 
@@ -346,7 +368,7 @@
   (let [available-blendings (remove empty? (keys blendings))
         chosen-blending (rand-nth available-blendings)
         prepared-colours (shuffle (vec chosen-blending))
-        available-tiles (remove #(= :twin-wire (:type %)) subgraph)
+        available-tiles (remove is-twin-wire subgraph)
         picked-tiles (pick-at-most-n-non-adjacent-tiles available-tiles
                                                         (count prepared-colours))
         remaining-tiles (subtract-by-id subgraph picked-tiles)
@@ -381,23 +403,19 @@
 (defn tag-expected-colours [subgraph]
   (let [blended-colour (blended-colour-of-subgraph subgraph)]
     (map (fn [tile]
-           (if (= (:type tile) :bulb)
+           (if (is-bulb tile)
              (assoc tile :expected-colour blended-colour)
              tile))
          subgraph)))
 
-(defn is-shared-pos [pos tile-list]
-  (let [tiles-on-pos (filter #(= pos (:pos %)) tile-list)]
-    (> (count tiles-on-pos) 1)))
-
 (defn ensure-at-least-one-bulb-in-subgraph-if-possible [subgraph whole-board]
-  (let [bulbs (filter #(= (:type %) :bulb) subgraph)]
+  (let [bulbs (filter is-bulb subgraph)]
     (if (>= (count bulbs) 1)
       subgraph
       (let [candidates (filter (fn [tile]
-                                 (and (is-single-ended tile)
-                                      (not (is-shared-pos (:pos tile) whole-board))
-                                      (= (:type tile) :source)))
+                                 (and (is-source tile)
+                                      (is-single-ended tile)
+                                      (not (is-shared-pos (:pos tile) whole-board))))
                                subgraph)]
         (if (empty? candidates)
           subgraph
