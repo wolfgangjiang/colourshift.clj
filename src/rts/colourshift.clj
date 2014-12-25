@@ -149,14 +149,18 @@
         valid-pairs (remove #(nil? (second %)) subwire-colour-pairs)]
     (into (hash-map) valid-pairs)))
 
-(defn dye-subgraph-wires-and-bulbs [tile-list]
-  (let [sources (filter #(= :source (:type %)) tile-list)
+(defn blended-colour-of-subgraph [subgraph]
+  (let [sources (filter #(= :source (:type %)) subgraph)
         colours (into (hash-set) (map :colour sources))
-        merged-colour (get blendings colours)]
+        blended-colour (get blendings colours)]
+    blended-colour))
+
+(defn dye-subgraph-wires-and-bulbs [tile-list]
+  (let [blended-colour (blended-colour-of-subgraph tile-list)]
     (map (fn [tile]
            (if (= :source (:type tile))
              tile
-             (assoc tile :colour merged-colour)))
+             (assoc tile :colour blended-colour)))
          tile-list)))  
 
 (defn dye-subgraph-source-subwires [tile-list]
@@ -338,6 +342,81 @@
   (flatten 
    (map change-foursome-to-twinwire-maybe plain-solution)))
 
+(defn tag-sources [subgraph]
+  (let [available-blendings (remove empty? (keys blendings))
+        chosen-blending (rand-nth available-blendings)
+        prepared-colours (shuffle (vec chosen-blending))
+        available-tiles (remove #(= :twin-wire (:type %)) subgraph)
+        picked-tiles (pick-at-most-n-non-adjacent-tiles available-tiles
+                                                        (count prepared-colours))
+        remaining-tiles (subtract-by-id subgraph picked-tiles)
+        sources (mapcat (fn [tile colour]
+                          (map (fn [dir]
+                                 {:id (generate-id)
+                                  :pos (:pos tile)
+                                  :type :source
+                                  :colour colour
+                                  :connection [dir]})
+                               (:connection tile)))
+                        picked-tiles
+                        (take (count picked-tiles) prepared-colours))]
+    (concat sources remaining-tiles)))
+
+(defn is-single-ended [tile]
+  (<= (count (:connection tile)) 1))
+
+(defn is-multi-ended [tile]
+  (not (is-single-ended tile)))
+
+(defn tag-one-bulb-or-wire [tile]
+  (cond
+   (= (:type tile) :source) tile
+   (= (:type tile) :twin-wire) tile
+   (is-multi-ended tile) (assoc tile :type :wire)
+   :t (assoc tile :type :bulb)))
+
+(defn tag-bulbs-and-wires [subgraph]
+  (map tag-one-bulb-or-wire subgraph))
+
+(defn tag-expected-colours [subgraph]
+  (let [blended-colour (blended-colour-of-subgraph subgraph)]
+    (map (fn [tile]
+           (if (= (:type tile) :bulb)
+             (assoc tile :expected-colour blended-colour)
+             tile))
+         subgraph)))
+
+(defn is-shared-pos [pos tile-list]
+  (let [tiles-on-pos (filter #(= pos (:pos %)) tile-list)]
+    (> (count tiles-on-pos) 1)))
+
+(defn ensure-at-least-one-bulb-in-subgraph-if-possible [subgraph whole-board]
+  (let [bulbs (filter #(= (:type %) :bulb) subgraph)]
+    (if (>= (count bulbs) 1)
+      subgraph
+      (let [candidates (filter (fn [tile]
+                                 (and (is-single-ended tile)
+                                      (not (is-shared-pos (:pos tile) whole-board))
+                                      (= (:type tile) :source)))
+                               subgraph)]
+        (if (empty? candidates)
+          subgraph
+          (let [picked (rand-nth candidates)
+                remaining (subtract-by-id subgraph [picked])
+                new-bulb (assoc picked :type :bulb)]
+            (conj remaining new-bulb)))))))
+
+(defn tag-solution [board]
+  (let [subgraphs (find-connected-subgraphs-default-setting board)
+        source-splitted-subgraphs (map tag-sources subgraphs)
+        reunited-board (apply concat source-splitted-subgraphs)
+        redivided-subgraphs (find-connected-subgraphs-default-setting reunited-board)
+        type-tagged-subgraphs (map tag-bulbs-and-wires redivided-subgraphs)
+        bulb-ensured-subgraphs (map #(ensure-at-least-one-bulb-in-subgraph-if-possible % reunited-board)
+                                    type-tagged-subgraphs)
+        full-tagged-subgraphs (map tag-expected-colours bulb-ensured-subgraphs)]
+    (apply concat full-tagged-subgraphs)))
+
 (defn generate-solution [x-size y-size seed-count]
   (let [[seed-list proto-pool]
         (generate-seeds x-size y-size seed-count)
@@ -349,7 +428,8 @@
         (generate-solution-recur proto-pool subgraph-info-list)
         mature-subgraph-list (map :subgraph-tiles mature-subgraph-info-list)
         plain-solution (apply concat mature-subgraph-list)
-        solution (change-some-foursome-to-twinwires plain-solution)]
+        topological-solution (change-some-foursome-to-twinwires plain-solution)
+        solution (tag-solution topological-solution)]
     solution))
 
 ;;;; ================== rendering ======================
@@ -705,13 +785,7 @@
     :connection [:east :north]}
    ])
 
-(def random-solution-board 
-  (map (fn [tile]
-         (let [con (:connection tile)]
-           (if (<= (count con) 1)
-             (assoc tile :type :bulb :expected-colour :yellow)
-             (assoc tile :type :wire))))
-       (generate-solution 16 16 10)))
+(def random-solution-board (generate-solution 16 16 8))
 
 (defn start []
   (main-loop (new-colourshift {:max-x 850

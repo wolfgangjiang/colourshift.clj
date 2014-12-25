@@ -12,10 +12,11 @@
                  (remove #(greater-than-or-equal-to-fn % t1) list)))
           list))
 
+(defn ge-by-id [t1 t2]
+  (>= (:id t1) (:id t2)))
+
 (defn no-adjacent-pairs-in [tile-list]
-  (let [ge-by-id (fn [t1 t2]
-                   (>= (:id t1) (:id t2)))
-        pairs (get-all-non-reflexive-pairings ge-by-id tile-list)]
+  (let [pairs (get-all-non-reflexive-pairings ge-by-id tile-list)]
     (not-any? (fn [pair]
                 (let [[t1 t2] (vec pair)]
                   (is-adjacent t1 t2)))
@@ -36,6 +37,17 @@
 
 (defn has-cycle [subgraph]
   (has-cycle-recur [(first subgraph)] subgraph))
+
+(defn generate-test-solution []
+  (generate-solution 10 10 4))
+
+(defn all-single-ended-tiles-in-subgraph-is-multi-shared [subgraph whole-board]
+  (let [single-ended-tiles (filter is-single-ended subgraph)
+        single-ended-poses (distinct (map :pos single-ended-tiles))]
+    (every? (fn [pos]
+              (let [tiles-on-pos (filter #(= pos (:pos %)) whole-board)]
+                (> (count tiles-on-pos) 1)))
+            single-ended-poses)))
 
 (deftest dye-one-source-one-bulb-one-bi-wire
   (let [raw-board [{:id 0 :pos [0 0] :type :bulb
@@ -368,14 +380,14 @@
 
 (deftest there-is-expected-number-of-poses-in-generated-solution-board
   (dotimes [_ quick-check-times]
-    (let [solution (generate-solution 10 10 11)
+    (let [solution (generate-test-solution)
           distinct-ids (get-id-set solution)]
       (is (= (count distinct-ids) (count solution))) ;; no duplicate ids
       (is (= (count (distinct (map :pos solution))) 100)))))
 
 (deftest all-connections-are-two-sided-in-generated-solution-board
   (dotimes [_ quick-check-times]
-    (let [solution (generate-solution 10 10 11)]
+    (let [solution (generate-test-solution)]
       (doseq [tile solution]
         (let [connection (:connection tile)
               connected-neighbors (get-neighbors-by-connection tile solution)]
@@ -386,14 +398,14 @@
 
 (deftest there-is-no-such-subgraph-that-has-only-one-tile
   (dotimes [_ quick-check-times]
-    (let [solution (generate-solution 10 10 11)
+    (let [solution (generate-test-solution)
           subgraphs (find-connected-subgraphs-default-setting solution)]
       (doseq [subg subgraphs]
         (is (> (count subg) 1))))))
 
 (deftest biggest-subgraph-is-at-least-twice-size-as-smallest-one
   (dotimes [_ quick-check-times]
-    (let [solution (generate-solution 10 10 11)
+    (let [solution (generate-test-solution)
           subgraphs (find-connected-subgraphs-default-setting solution)
           subgraph-sizes (sort (map count subgraphs))
           min-size (first subgraph-sizes)
@@ -422,7 +434,81 @@
 
 (deftest no-cycles-in-any-subgraphs-in-generated-solution-board
   (dotimes [_ quick-check-times]
-    (let [solution (generate-solution 10 10 11)
+    (let [solution (generate-test-solution)
           subgraphs (find-connected-subgraphs-default-setting solution)]
       (doseq [subg subgraphs]
         (is (not (has-cycle subg)))))))
+
+(deftest single-ended-tile-must-be-bulb-or-source
+  (dotimes [_ quick-check-times]
+    (let [solution (generate-test-solution)]
+      (doseq [tile solution]
+        (when (= (count (:connection tile)) 1)
+          (is (or (= (:type tile) :bulb)
+                  (= (:type tile) :source))))))))
+
+(deftest multiple-ended-tile-must-be-wire-or-twinwire
+  (dotimes [_ quick-check-times]
+    (let [solution (generate-test-solution)]
+      (doseq [tile solution]
+        (when (> (count (:connection tile)) 1)
+          (is (or (= (:type tile) :wire)
+                  (= (:type tile) :twin-wire))))))))
+
+(deftest subgraph-colour-is-correct
+  (dotimes [_ quick-check-times]
+    (let [solution (generate-test-solution)
+          subgraphs (find-connected-subgraphs-default-setting solution)]
+      (doseq [subg subgraphs]
+        (let [bulbs (filter #(= (:type %) :bulb) subg)
+              subg-colour (blended-colour-of-subgraph subg)]
+          (is (every? #(= (:expected-colour %) subg-colour) bulbs)))))))
+
+(deftest no-duplicate-coloured-source-in-same-subgraph
+  (dotimes [_ quick-check-times]
+    (let [solution (generate-test-solution)
+          subgraphs (find-connected-subgraphs-default-setting solution)]
+      (doseq [subg subgraphs]
+        (let [sources (filter #(= (:type %) :source) subg)
+              source-colours (into (hash-set) (map :colour sources))]
+          (is (= (count sources) (count source-colours))))))))
+
+(deftest not-any-two-sources-are-directly-connected
+  (dotimes [_ quick-check-times]
+    (let [solution (generate-test-solution)
+          sources (filter #(= (:type %) :source) solution)
+          source-pairs (map vec (get-all-non-reflexive-pairings ge-by-id sources))]
+      (doseq [[s1 s2] source-pairs]
+        (is (not (is-connected s1 s2)))))))
+
+(deftest there-is-at-least-one-source-in-each-subgraph
+  (dotimes [_ quick-check-times]
+    (let [solution (generate-test-solution)
+          subgraphs (find-connected-subgraphs-default-setting solution)]
+      (doseq [subg subgraphs]
+        (let [sources (filter #(= (:type %) :source) subg)]
+          (is (>= (count sources) 1)))))))
+
+(deftest shared-poses-should-be-either-all-sources-or-all-twin-wires
+  (dotimes [_ quick-check-times]
+    (let [solution (generate-test-solution)
+          all-poses (distinct (map :pos solution))
+          shared-poses (filter (fn [pos]
+                                 (let [tiles-on-pos (filter #(= pos (:pos %)) solution)]
+                                   (> (count tiles-on-pos) 1)))
+                               all-poses)]
+      (doseq [pos shared-poses]
+        (let [tiles-on-pos (filter #(= pos (:pos %)) solution)]
+          (is (or (every? (fn [tile] (and (= :source (:type tile))
+                                          (= 1 (count (:connection tile))))) tiles-on-pos)
+                  (every? (fn [tile] (and (= :twin-wire (:type tile))
+                                          (= 2 (count (:connection tile))))) tiles-on-pos))))))))
+
+(deftest there-is-at-least-one-bulb-in-each-subgraph-if-possible
+  (dotimes [_ quick-check-times]
+    (let [solution (generate-test-solution)
+          subgraphs (find-connected-subgraphs-default-setting solution)]
+      (doseq [subg subgraphs]
+        (when-not (all-single-ended-tiles-in-subgraph-is-multi-shared subg solution)
+          (let [bulbs (filter #(= :bulb (:type %)) subg)]
+            (is (>= (count bulbs) 1))))))))
