@@ -41,6 +41,9 @@
 (defn generate-test-solution []
   (generate-solution 10 10 4))
 
+(defn generate-test-question []
+  (generate-question 10 10 4))
+
 (defn all-single-ended-tiles-in-subgraph-is-multi-shared [subgraph whole-board]
   (let [single-ended-tiles (filter is-single-ended subgraph)
         single-ended-poses (distinct (map :pos single-ended-tiles))]
@@ -48,6 +51,28 @@
               (let [tiles-on-pos (filter #(= pos (:pos %)) whole-board)]
                 (> (count tiles-on-pos) 1)))
             single-ended-poses)))
+
+;; (defn get-all-rotations [tile]
+;;   (map #(rotate-tile-multiple-times tile %) [0 1 2 3]))
+
+;; (defn get-existing-adjacent-tiles-of [tile tile-list]
+;;   (filter #(is-adjacent tile %) tile-list))
+
+;; (defn is-inevitably-connected [t1 t2]
+;;   (let [rotations-1 (get-all-rotations t1)
+;;         rotations-2 (get-all-rotations t2)
+;;         pairs (get-all-pairings rotations-1 rotations-2)]
+;;     (every? (fn [[r1 r2]]
+;;               (is-connected r1 r2)) pairs)))
+
+;; (defn squash-tiles-on-pos [pos tile-list]
+;;   (let [tiles-on-pos (get-tiles-on-pos pos tile-list)
+;;         connections-list (map :connection tiles-on-pos)
+;;         squashed-connection (distinct (apply concat connections-list))]
+;;     {:id (generate-id)
+;;      :pos pos
+;;      :type (:type (first tiles-on-pos))
+;;      :connection squashed-connection}))
 
 (deftest dye-one-source-one-bulb-one-bi-wire
   (let [raw-board [{:id 0 :pos [0 0] :type :bulb
@@ -512,3 +537,76 @@
         (when-not (all-single-ended-tiles-in-subgraph-is-multi-shared subg solution)
           (let [bulbs (filter #(= :bulb (:type %)) subg)]
             (is (>= (count bulbs) 1))))))))
+
+(deftest single-tile-can-rotate-once-properly
+  (let [tile {:id 0
+              :type :wire
+              :connection [:south :east]}
+        rotated-tile (rotate-tile-once tile)]
+    (is (= (into (hash-set) (:connection rotated-tile))
+           #{:north :east}))
+    (is (= :wire (:type rotated-tile)))))
+
+(deftest single-tile-can-rotate-multiple-times-property
+  (let [tile {:id 0
+              :type :wire
+              :connection [:south :east]}
+        rotated-tile (rotate-tile-multiple-times tile 2)]
+    (is (= (into (hash-set) (:connection rotated-tile))
+           #{:north :west}))
+    (is (= :wire (:type rotated-tile)))))
+
+(deftest multiple-tiles-can-rotate-synchronizedly
+  (let [tile-1 {:id 0
+                :pos [0 0]
+                :type :wire
+                :connection [:south]}
+        tile-2 {:id 1
+                :pos [0 0]
+                :type :wire
+                :connection [:west]}
+        tile-3 {:id 2
+                :pos [0 1]
+                :type :wire
+                :connection [:east :north]}
+        rotated-tiles (rotate-tiles-at-pos-multiple-times
+                       [0 0] 3 [tile-1 tile-2 tile-3])]
+    (is (= (into (hash-set) (map #(into (hash-set) (:connection %)) rotated-tiles))
+           #{#{:north} #{:west} #{:east :north}}))))
+
+(deftest question-board-has-enough-tiles
+  (dotimes [_ quick-check-times]
+    (let [question (generate-test-question)
+          all-poses (distinct (map :pos question))]
+      (is (= (count all-poses) 100)))))
+
+(deftest tiles-on-same-pos-should-not-have-intersected-connections-in-question-board
+  (dotimes [_ quick-check-times]
+    (let [question (generate-test-question)
+          all-poses (distinct (map :pos question))]
+      (doseq [pos all-poses]
+        (let [tiles (get-tiles-on-pos pos question)
+              all-connections (apply concat (map :connection tiles))]
+          (is (= (count all-connections)
+                 (count (distinct all-connections)))))))))
+
+(deftest tiles-on-same-pos-should-have-same-type-in-question-board
+  (dotimes [_ quick-check-times]
+    (let [question (generate-test-question)
+          all-poses (distinct (map :pos question))]
+      (doseq [pos all-poses]
+        (let [tiles (get-tiles-on-pos pos question)
+              all-types (distinct (map :type tiles))]
+          (is (= (count all-types) 1))
+          (when (> (count tiles) 1)
+            (is (contains? #{:source :twin-wire} (first all-types)))))))))
+
+(deftest issue-directly-connected-sources-have-their-subwires-dyed-correctly
+  (let [tile-list [{:id 0 :pos [0 0] :type :source
+                    :connection [:east] :colour :red}
+                   {:id 1 :pos [1 0] :type :source
+                    :connection [:west] :colour :green}]
+        subwires-of-tile-0 (dye-subwires-of-a-source 
+                     (find-by-id 0 tile-list)
+                     tile-list)]
+    (is (= subwires-of-tile-0 {:east :yellow}))))

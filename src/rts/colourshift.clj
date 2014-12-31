@@ -37,6 +37,11 @@
                   :yellow Color/YELLOW
                   :white Color/WHITE})
 
+(def dir-rotations {:north :west
+                    :west :south
+                    :south :east
+                    :east :north})
+
 (defn fmap [f m]
   (into {} (map (fn [[k v]]
                   [k (f k v)]) m)))
@@ -117,6 +122,26 @@
   (let [connected-tiles (map #(find-by-connection % tile tile-list) (keys directions))]
     (remove nil? connected-tiles)))
 
+(defn rotate-dir [dir]
+  (dir-rotations dir))
+
+(defn rotate-tile-once [tile]
+  (update-in tile
+             [:connection]
+             (fn [old-con]
+               (map rotate-dir old-con))))
+
+(defn rotate-tile-multiple-times [tile times]
+  (if (<= times 0)
+    tile
+    (recur (rotate-tile-once tile) (dec times))))
+
+(defn rotate-tiles-at-pos-multiple-times [pos times tile-list]
+  (let [tiles-on-pos (get-tiles-on-pos pos tile-list)
+        remaining (subtract-by-id tile-list tiles-on-pos)
+        rotated-tiles (map #(rotate-tile-multiple-times % times) tiles-on-pos)]
+    (concat rotated-tiles remaining)))
+
 (defn get-pos-on-dir [origin-pos dir]
   (let [pos-diff (directions dir)
         pos-on-dir (pos-add origin-pos pos-diff)]
@@ -155,14 +180,19 @@
   (find-connected-subgraphs all-tiles
                             get-neighbors-by-connection
                             subtract-by-id))
-  
+
+(defn get-subwire-colour [source-tile neighbor]
+  (cond
+   (nil? neighbor) (:colour source-tile)
+   (is-source neighbor) (get blendings (set [(:colour source-tile)
+                                             (:colour neighbor)]))
+   :t (:colour neighbor)))
+
 
 (defn dye-subwires-of-a-source [source-tile tile-list]
   (let [subwire-colour-pairs (map (fn [dir]
                                     (let [neighbor-on-dir (find-by-connection dir source-tile tile-list)
-                                          subwire-colour (if neighbor-on-dir
-                                                           (:colour neighbor-on-dir)
-                                                           (:colour source-tile))]
+                                          subwire-colour (get-subwire-colour source-tile neighbor-on-dir)]
                                       [dir subwire-colour]))
                                   (:connection source-tile))
         valid-pairs (remove #(nil? (second %)) subwire-colour-pairs)]
@@ -170,7 +200,7 @@
 
 (defn blended-colour-of-subgraph [subgraph]
   (let [sources (filter is-source subgraph)
-        colours (into (hash-set) (map :colour sources))
+        colours (set (map :colour sources))
         blended-colour (get blendings colours)]
     blended-colour))
 
@@ -180,7 +210,7 @@
            (if (is-source tile)
              tile
              (assoc tile :colour blended-colour)))
-         tile-list)))  
+         tile-list)))
 
 (defn dye-subgraph-source-subwires [tile-list]
   (map (fn [tile]
@@ -218,7 +248,7 @@
                n))))
 
 (defn pick-at-most-n-non-adjacent-tiles [tile-list n]
-  (pick-at-most-n-non-adjacent-tiles-recur #{} 
+  (pick-at-most-n-non-adjacent-tiles-recur #{}
                                            (shuffle tile-list)
                                            n))
 
@@ -324,7 +354,7 @@
         destiny-trial (rand)]
     ;; Unregard to destiny-trial, a subgraph is always allowed to grow
     ;; if it is too small.
-    (if (or (< (count subgraph-tiles) 2) 
+    (if (or (< (count subgraph-tiles) 2)
             (< destiny-trial destiny-number))
       (grow-subgraph-info proto-pool subgraph-info)
       [proto-pool subgraph-info])))
@@ -361,7 +391,7 @@
           :connection con2}]))))
 
 (defn change-some-foursome-to-twinwires [plain-solution]
-  (flatten 
+  (flatten
    (map change-foursome-to-twinwire-maybe plain-solution)))
 
 (defn tag-sources [subgraph]
@@ -450,6 +480,26 @@
         solution (tag-solution topological-solution)]
     solution))
 
+(defn scramble-tiles-at-pos [pos board]
+  (let [maybe (rand)
+        times (cond
+               (< maybe 0.1) 0
+               (< maybe 0.4) 1
+               (< maybe 0.7) 2
+               :t 3)]
+    (rotate-tiles-at-pos-multiple-times pos times board)))
+
+(defn scramble-board [board]
+  (let [all-poses (map :pos board)]
+    (reduce (fn [board-acc pos]
+              (scramble-tiles-at-pos pos board-acc))
+            board
+            all-poses)))
+
+(defn generate-question [x-size y-size seed-count]
+  (let [solution (generate-solution x-size y-size seed-count)]
+    (scramble-board solution)))
+
 ;;;; ================== rendering ======================
 
 (def line-width 5)
@@ -463,7 +513,7 @@
 (defmethod draw-wire #{:east :west}
   [g connections start-x start-y tile-size]
   (let [half (/ tile-size 2)]
-    (.drawLine g 
+    (.drawLine g
                start-x (+ start-y half)
                (+ start-x tile-size) (+ start-y half))))
 
@@ -581,7 +631,7 @@
                bulb-size
                bulb-size)))
 
-(defn draw-unlit-bulb [g expected-palette-colour 
+(defn draw-unlit-bulb [g expected-palette-colour
                        start-x start-y tile-size]
   (let [bulb-size (/ tile-size 3)
         bulb-offset (/ (- tile-size bulb-size) 2)]
@@ -616,11 +666,11 @@
                    center-x center-y
                    con-dest-x con-dest-y)))))
 
-(defmulti draw-specific-tile 
+(defmulti draw-specific-tile
   (fn [g tile start-x start-y tile-size]
     (:type tile)))
 
-(defmethod draw-specific-tile :source 
+(defmethod draw-specific-tile :source
   [g tile start-x start-y tile-size]
   (draw-source-or-bulb-connections g tile start-x start-y tile-size
                                    (fn [dir tile]
@@ -658,7 +708,7 @@
   (let [palette-colour (colour-rgbs (:colour tile))]
     (.setColor g palette-colour)
     (if (= (:colour tile) (:expected-colour tile))
-      (draw-lit-bulb g 
+      (draw-lit-bulb g
                      palette-colour
                      start-x start-y tile-size)
       (draw-unlit-bulb g
@@ -734,7 +784,7 @@
    {:id 7 :pos [0 2] :type :wire
     :connection [:north :south]}
    {:id 8 :pos [1 3] :type :wire
-    :connection [:west :east]}    
+    :connection [:west :east]}
    {:id 9 :pos [4 1] :type :wire
     :connection [:west :east]}
    {:id 10 :pos [5 2] :type :wire
@@ -803,7 +853,7 @@
     :connection [:east :north]}
    ])
 
-(def random-solution-board (generate-solution 16 16 8))
+(def random-solution-board (generate-question 16 16 8))
 
 (defn start []
   (main-loop (new-colourshift {:max-x 850
