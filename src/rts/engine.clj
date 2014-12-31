@@ -43,9 +43,12 @@
         :collect (let [events @event-queue]
                    (reset! event-queue [])
                    events)
-        :listen (proxy [java.awt.event.KeyAdapter] []
-                  (keyPressed [e]
-                    (push-event (.getKeyCode e))))
+        :key-listener (proxy [java.awt.event.KeyAdapter] []
+                        (keyPressed [e]
+                          (push-event {:type :key-pressed :key-code (.getKeyCode e)})))
+        :mouse-listener (proxy [java.awt.event.MouseAdapter] []
+                          (mouseClicked [e]
+                            (push-event {:type :mouse-clicked :info e})))
         :else (throw (RuntimeException. (str method " is not a method in inputs-listener")))))))
 
 (defn init-swing [inputs-listener width height]
@@ -54,7 +57,8 @@
                   (java.awt.Dimension. width height)))]
     (doto frame
       (.pack)
-      (.addKeyListener (inputs-listener :listen))
+      (.addKeyListener (inputs-listener :key-listener))
+      (.addMouseListener (inputs-listener :mouse-listener))
       (.setDefaultCloseOperation
        javax.swing.JFrame/EXIT_ON_CLOSE)
       (.setVisible true)
