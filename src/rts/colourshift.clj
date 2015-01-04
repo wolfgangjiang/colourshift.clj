@@ -37,10 +37,10 @@
                   :yellow Color/YELLOW
                   :white Color/WHITE})
 
-(def dir-rotations {:north :west
-                    :west :south
-                    :south :east
-                    :east :north})
+(def dir-rotations {:north :east
+                    :west :north
+                    :south :west
+                    :east :south})
 
 (defn fmap [f m]
   (into {} (map (fn [[k v]]
@@ -735,6 +735,23 @@
   (.setBackground g (Color/BLACK))
   (.clearRect g 0 0 max-x max-y))
 
+;;;; ================ input handler ======================
+
+(defn handle-mouse-click [gs x y]
+  (let [tile-size (get-in gs [:config :tile-size])
+        old-board (:board gs)
+        pos-x (int (/ x tile-size))
+        pos-y (int (/ y tile-size))
+        pos [pos-x pos-y]
+        new-board (rotate-tiles-at-pos-multiple-times pos 1 old-board)]
+    (assoc gs :board new-board)))
+
+(defn handle-one-input [gs input]
+  (case (:type input)
+    :mouse-clicked (let [info (:info input)]
+                     (handle-mouse-click gs (.getX info) (.getY info)))
+    gs))
+
 ;;;; ================ engine interface ===================
 
 (defn game-init [config]
@@ -743,7 +760,7 @@
    :fps -1})
 
 (defn game-handle-user-inputs [gs inputs]
-  gs)
+  (reduce handle-one-input gs inputs))
 
 (defn game-handle-tick [gs dt]
   gs)
