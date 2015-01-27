@@ -2,71 +2,127 @@
   (:use rts.engine)
   (:import [java.awt BasicStroke Color]))
 
-;; ;;;; ================ dyeing ===================
+;;;; ============= tile-set ===================
 
-;; (def directions {:east [1 0]
-;;                  :west [-1 0]
-;;                  :north [0 -1]
-;;                  :south [0 1]})
+(defn map-over-values [f m]
+  (into {} (for [[k v] m] [k (f v)])))
 
-;; (def direction-names {[1 0] :east
-;;                       [-1 0] :west
-;;                       [0 -1] :north
-;;                       [0 1] :south})
+(defn ts-make-tileset [tile-list]
+  (reduce (fn [ts tile]
+            (let [pos (:pos tile)]
+              (if (contains? ts pos)
+                (update-in ts [pos] conj tile)
+                (assoc ts pos #{tile}))))
+          {}
+          tile-list))
 
-;; (def opposites {:east :west
-;;                 :west :east
-;;                 :north :south
-;;                 :south :north})
+(defn ts-flat-tile-list [ts]
+  (let [values (vals ts)
+        value-vecs (map vec values)
+        all-values-list (reduce concat value-vecs)]
+    all-values-list))
 
-;; (def blendings {#{} :gray
-;;                 #{:red} :red
-;;                 #{:blue} :blue
-;;                 #{:green} :green
-;;                 #{:red :blue} :magenta
-;;                 #{:red :green} :yellow
-;;                 #{:blue :green} :cyan
-;;                 #{:red :blue :green} :white})
+(defn ts-map [f ts]
+  (map-over-values (fn [set-of-tiles]
+                     (set (map f set-of-tiles)))
+                   ts))
 
-;; (def colour-rgbs {:gray Color/LIGHT_GRAY
-;;                   :red Color/RED
-;;                   :green Color/GREEN
-;;                   :blue Color/BLUE
-;;                   :magenta Color/MAGENTA
-;;                   :cyan Color/CYAN
-;;                   :yellow Color/YELLOW
-;;                   :white Color/WHITE})
+(defn ts-filter [f ts]
+  (filter f (ts-flat-tile-list ts)))
 
-;; (def dir-rotations {:north :east
-;;                     :west :north
-;;                     :south :west
-;;                     :east :south})
+(defn ts-find-by-id [id ts]
+  (first (ts-filter #(= id (:id %)) ts)))
 
-;; (defn fmap [f m]
-;;   (into {} (map (fn [[k v]]
-;;                   [k (f k v)]) m)))
+(defn ts-remove-by-id [ts tile]
+  (let [{:keys [id pos]} tile
+        same-pos-set (get ts pos)
+        same-pos-set-without-unwanted-tile
+        (set (remove #(= id (:id %)) same-pos-set))]
+    (if (empty? same-pos-set-without-unwanted-tile)
+      (dissoc ts pos)
+      (assoc ts pos same-pos-set-without-unwanted-tile))))
 
-;; (defn add-revref-to [board]
-;;   (fmap (fn [pos tile]
-;;           (assoc tile :pos pos)) board))
+(defn ts-subtract-by-id [ts unwanted-ts]
+  (reduce ts-remove-by-id ts (ts-flat-tile-list unwanted-ts)))
 
-;; (defn pos-add [p1 p2]
-;;   (let [[x1 y1] p1
-;;         [x2 y2] p2]
-;;     [(+ x1 x2) (+ y1 y2)]))
+(defn ts-rand-nth [ts]
+  (let [picked-key (rand-nth (keys ts))]
+    (first (get ts picked-key))))
 
-;; (defn pos-scale-multiply [[x y] efficient]
-;;   [(* x efficient) (* y efficient)])
+(defn ts-conj [ts tile]
+  (let [{:keys [pos]} tile]
+    (if (contains? ts pos)
+      (assoc ts pos (conj (get ts pos) tile))
+      (assoc ts pos #{tile}))))
 
-;; (defn pos-diff [p1 p2]
-;;   (let [[x1 y1] p1
-;;         [x2 y2] p2]
-;;     [(- x1 x2) (- y1 y2)]))
+(defn ts-concat [ts1 ts2]
+  (reduce ts-conj ts1 (ts-flat-tile-list ts2)))
+
+;;;; ================ dyeing ===================
+
+(def directions {:east [1 0]
+                 :west [-1 0]
+                 :north [0 -1]
+                 :south [0 1]})
+
+(def direction-names {[1 0] :east
+                      [-1 0] :west
+                      [0 -1] :north
+                      [0 1] :south})
+
+(def opposites {:east :west
+                :west :east
+                :north :south
+                :south :north})
+
+(def blendings {#{} :gray
+                #{:red} :red
+                #{:blue} :blue
+                #{:green} :green
+                #{:red :blue} :magenta
+                #{:red :green} :yellow
+                #{:blue :green} :cyan
+                #{:red :blue :green} :white})
+
+(def colour-rgbs {:gray Color/LIGHT_GRAY
+                  :red Color/RED
+                  :green Color/GREEN
+                  :blue Color/BLUE
+                  :magenta Color/MAGENTA
+                  :cyan Color/CYAN
+                  :yellow Color/YELLOW
+                  :white Color/WHITE})
+
+(def dir-rotations {:north :east
+                    :west :north
+                    :south :west
+                    :east :south})
+
+(defn fmap [f m]
+  (into {} (map (fn [[k v]]
+                  [k (f k v)]) m)))
+
+(defn add-revref-to [board]
+  (fmap (fn [pos tile]
+          (assoc tile :pos pos)) board))
+
+(defn pos-add [p1 p2]
+  (let [[x1 y1] p1
+        [x2 y2] p2]
+    [(+ x1 x2) (+ y1 y2)]))
+
+(defn pos-scale-multiply [[x y] efficient]
+  [(* x efficient) (* y efficient)])
+
+(defn pos-diff [p1 p2]
+  (let [[x1 y1] p1
+        [x2 y2] p2]
+    [(- x1 x2) (- y1 y2)]))
 
 ;; (defn find-by-id [id tile-list]
 ;;   (first (filter #(= id (:id %)) tile-list)))
 
-;; ;;; CAUTION: incorrect in the face of twin-wires
+;;; CAUTION: incorrect in the face of twin-wires
 ;; (defn find-by-pos [pos tile-list]
 ;;   (first (filter #(= pos (:pos %)) tile-list)))
 
@@ -90,146 +146,163 @@
 ;;         (if (empty? connected)
 ;;           nil
 ;;           (first connected))))))
+(defn ts-find-by-connection [dir tile ts]
+  (let [connection-dirs (into (hash-set) (:connection tile))
+        pos (:pos tile)]
+    (if (not (contains? connection-dirs dir))
+      nil  ;; active non-connection
+      (let [pos-diff (directions dir)
+            pos-on-dir (pos-add pos pos-diff)
+            tiles-on-dir (get ts pos-on-dir)
+            opposite-dir (opposites dir)
+            connected (filter (fn [t]
+                                (let [t-connection (:connection t)]
+                                  (some #{opposite-dir} t-connection))) tiles-on-dir)]
+        (if (empty? connected)
+          nil
+          (first connected))))))
 
-;; (defn is-connected [t1 t2]
-;;   (some #(not (nil? (find-by-connection % t1 [t2])))
-;;         (:connection t1)))
 
-;; (defn is-adjacent [t1 t2]
-;;   (let [dpos (pos-diff (:pos t1) (:pos t2))]
-;;     (contains? direction-names dpos)))
+(defn is-connected [t1 t2]
+  (some #(not (nil? (ts-find-by-connection % t1 [t2])))
+        (:connection t1)))
 
-;; (defn is-of-type [tile type]
-;;   (= (:type tile) type))
+(defn is-adjacent [t1 t2]
+  (let [dpos (pos-diff (:pos t1) (:pos t2))]
+    (contains? direction-names dpos)))
 
-;; (defn is-bulb [tile]
-;;   (is-of-type tile :bulb))
+(defn is-of-type [tile type]
+  (= (:type tile) type))
 
-;; (defn is-source [tile]
-;;   (is-of-type tile :source))
+(defn is-bulb [tile]
+  (is-of-type tile :bulb))
 
-;; (defn is-twin-wire [tile]
-;;   (is-of-type tile :twin-wire))
+(defn is-source [tile]
+  (is-of-type tile :source))
 
-;; (defn get-tiles-on-pos [pos tile-list]
-;;   (filter #(= pos (:pos %)) tile-list))
+(defn is-twin-wire [tile]
+  (is-of-type tile :twin-wire))
 
-;; (defn is-shared-pos [pos tile-list]
-;;   (let [tiles-count-on-pos (count (get-tiles-on-pos pos tile-list))]
-;;     (> tiles-count-on-pos 1)))
+(defn get-tiles-on-pos [pos tile-list]
+  (filter #(= pos (:pos %)) tile-list))
 
-;; (defn get-neighbors-by-connection [tile tile-list]
-;;   (let [connected-tiles (map #(find-by-connection % tile tile-list) (keys directions))]
+(defn is-shared-pos [pos tile-list]
+  (let [tiles-count-on-pos (count (get-tiles-on-pos pos tile-list))]
+    (> tiles-count-on-pos 1)))
+
+;; (defn get-neighbors-by-connection [tile tileset]
+;;   (let [connected-tiles (map #(find-by-connection % tile tileset) (keys directions))]
 ;;     (remove nil? connected-tiles)))
 
-;; (defn rotate-dir [dir]
-;;   (dir-rotations dir))
+(defn ts-get-neighbors-by-connection [tile tileset]
+  (let [connected-tiles (map #(ts-find-by-connection % tile tileset) (keys directions))]
+    (ts-make-tileset (remove nil? connected-tiles))))
 
-;; (defn rotate-tile-once [tile]
-;;   (update-in tile
-;;              [:connection]
-;;              (fn [old-con]
-;;                (map rotate-dir old-con))))
+(defn rotate-dir [dir]
+  (dir-rotations dir))
 
-;; (defn rotate-tile-multiple-times [tile times]
-;;   (if (<= times 0)
-;;     tile
-;;     (recur (rotate-tile-once tile) (dec times))))
+(defn rotate-tile-once [tile]
+  (update-in tile
+             [:connection]
+             (fn [old-con]
+               (map rotate-dir old-con))))
 
-;; (defn rotate-tiles-at-pos-multiple-times [pos times tile-list]
-;;   (let [tiles-on-pos (get-tiles-on-pos pos tile-list)
-;;         remaining (subtract-by-id tile-list tiles-on-pos)
-;;         rotated-tiles (map #(rotate-tile-multiple-times % times) tiles-on-pos)]
-;;     (concat rotated-tiles remaining)))
+(defn rotate-tile-multiple-times [tile times]
+  (if (<= times 0)
+    tile
+    (recur (rotate-tile-once tile) (dec times))))
 
-;; (defn get-pos-on-dir [origin-pos dir]
-;;   (let [pos-diff (directions dir)
-;;         pos-on-dir (pos-add origin-pos pos-diff)]
-;;     pos-on-dir))
+(defn rotate-tiles-at-pos-multiple-times [pos times tile-list]
+  (let [tiles-on-pos (get-tiles-on-pos pos tile-list)
+        remaining (ts-subtract-by-id tile-list tiles-on-pos)
+        rotated-tiles (map #(rotate-tile-multiple-times % times) tiles-on-pos)]
+    (concat rotated-tiles remaining)))
 
-;; (defn breadth-first-traverse [start-tile all-tiles get-neighbors-of subtract]
-;;   (let [breadth-first-recur
-;;         (fn [open-list closed-list raw-list]
-;;           (if (empty? open-list)
-;;             closed-list
-;;             (let [seed (first open-list)
-;;                   raw-neighbors (get-neighbors-of seed raw-list)
-;;                   unvisited-neighbors (subtract raw-neighbors (concat open-list closed-list))
-;;                   new-open-list (concat (rest open-list) unvisited-neighbors)
-;;                   new-closed-list (conj closed-list seed)
-;;                   new-raw-list (subtract raw-list unvisited-neighbors)]
-;;               (recur new-open-list new-closed-list new-raw-list))))
-;;         unused-tiles (subtract all-tiles [start-tile])]
-;;     (breadth-first-recur [start-tile] [] unused-tiles)))
+(defn get-pos-on-dir [origin-pos dir]
+  (let [pos-diff (directions dir)
+        pos-on-dir (pos-add origin-pos pos-diff)]
+    pos-on-dir))
 
-;; (defn find-connected-subgraphs [all-tiles get-neighbors-of subtract]
-;;   (let [find-connected-subgraphs-recur
-;;         (fn [remaining-tiles subgraphs]
-;;           (if (empty? remaining-tiles)
-;;             subgraphs
-;;             (let [seed-tile (first remaining-tiles)
-;;                   new-subgraph (breadth-first-traverse seed-tile
-;;                                                        (rest remaining-tiles)
-;;                                                        get-neighbors-of
-;;                                                        subtract)
-;;                   unused-tiles (subtract remaining-tiles new-subgraph)]
-;;               (recur unused-tiles (conj subgraphs new-subgraph)))))]
-;;     (find-connected-subgraphs-recur all-tiles [])))
+(defn breadth-first-traverse [start-tile all-tiles]
+  (let [breadth-first-recur
+        (fn [open-list closed-list raw-list]
+          (if (empty? open-list)
+            closed-list
+            (let [seed (ts-rand-nth open-list)
+                  raw-neighbors (ts-get-neighbors-by-connection seed raw-list)
+                  unvisited-neighbors (ts-subtract-by-id raw-neighbors (ts-concat open-list closed-list))
+                  new-open-list (ts-concat (ts-remove-by-id open-list seed) unvisited-neighbors)
+                  new-closed-list (ts-conj closed-list seed)
+                  new-raw-list (ts-subtract-by-id raw-list unvisited-neighbors)]
+              (recur new-open-list new-closed-list new-raw-list))))
+        unused-tiles (ts-subtract-by-id all-tiles (ts-make-tileset [start-tile]))]
+    (breadth-first-recur (ts-make-tileset [start-tile]) (ts-make-tileset []) unused-tiles)))
 
-;; (defn find-connected-subgraphs-default-setting [all-tiles]
-;;   (find-connected-subgraphs all-tiles
-;;                             get-neighbors-by-connection
-;;                             subtract-by-id))
+(defn find-connected-subgraphs [all-tiles]
+  (let [find-connected-subgraphs-recur
+        (fn [remaining-tiles subgraphs]
+          (if (empty? remaining-tiles)
+            subgraphs
+            (let [seed-tile (ts-rand-nth remaining-tiles)
+                  new-subgraph (breadth-first-traverse seed-tile
+                                                       (ts-remove-by-id remaining-tiles seed-tile))
+                  unused-tiles (ts-subtract-by-id remaining-tiles new-subgraph)]
+              (recur unused-tiles (conj subgraphs new-subgraph)))))]
+    (find-connected-subgraphs-recur all-tiles [])))
 
-;; (defn get-subwire-colour [source-tile neighbor]
-;;   (cond
-;;    (nil? neighbor) (:colour source-tile)
-;;    (is-source neighbor) (get blendings (set [(:colour source-tile)
-;;                                              (:colour neighbor)]))
-;;    :t (:colour neighbor)))
+(defn find-connected-subgraphs-default-setting [all-tiles]
+  (find-connected-subgraphs all-tiles))
 
 
-;; (defn dye-subwires-of-a-source [source-tile tile-list]
-;;   (let [subwire-colour-pairs (map (fn [dir]
-;;                                     (let [neighbor-on-dir (find-by-connection dir source-tile tile-list)
-;;                                           subwire-colour (get-subwire-colour source-tile neighbor-on-dir)]
-;;                                       [dir subwire-colour]))
-;;                                   (:connection source-tile))
-;;         valid-pairs (remove #(nil? (second %)) subwire-colour-pairs)]
-;;     (into (hash-map) valid-pairs)))
+(defn get-subwire-colour [source-tile neighbor]
+  (cond
+   (nil? neighbor) (:colour source-tile)
+   (is-source neighbor) (get blendings (set [(:colour source-tile)
+                                             (:colour neighbor)]))
+   :t (:colour neighbor)))
 
-;; (defn blended-colour-of-subgraph [subgraph]
-;;   (let [sources (filter is-source subgraph)
-;;         colours (set (map :colour sources))
-;;         blended-colour (get blendings colours)]
-;;     blended-colour))
 
-;; (defn dye-subgraph-wires-and-bulbs [tile-list]
-;;   (let [blended-colour (blended-colour-of-subgraph tile-list)]
-;;     (map (fn [tile]
-;;            (if (is-source tile)
-;;              tile
-;;              (assoc tile :colour blended-colour)))
-;;          tile-list)))
+(defn dye-subwires-of-a-source [source-tile tile-list]
+  (let [subwire-colour-pairs (map (fn [dir]
+                                    (let [neighbor-on-dir (ts-find-by-connection dir source-tile tile-list)
+                                          subwire-colour (get-subwire-colour source-tile neighbor-on-dir)]
+                                      [dir subwire-colour]))
+                                  (:connection source-tile))
+        valid-pairs (remove #(nil? (second %)) subwire-colour-pairs)]
+    (into (hash-map) valid-pairs)))
 
-;; (defn dye-subgraph-source-subwires [tile-list]
-;;   (map (fn [tile]
-;;          (if (is-source tile)
-;;            (assoc tile :subwires (dye-subwires-of-a-source tile tile-list))
-;;            tile))
-;;        tile-list))
+(defn blended-colour-of-subgraph [subgraph]
+  (let [sources (ts-filter is-source subgraph)
+        colours (set (map :colour sources))
+        blended-colour (get blendings colours)]
+    blended-colour))
 
-;; ;;; implemented in two passes, to ensure that all neighbors are
-;; ;;; properly dyed when dyeing subwires of a source.
-;; (defn dye-subgraph [tile-list]
-;;   (-> tile-list
-;;       dye-subgraph-wires-and-bulbs
-;;       dye-subgraph-source-subwires))
+(defn dye-subgraph-wires-and-bulbs [tileset]
+  (let [blended-colour (blended-colour-of-subgraph tileset)]
+    (ts-map (fn [tile]
+              (if (is-source tile)
+                tile
+                (assoc tile :colour blended-colour)))
+            tileset)))
 
-;; (defn dye-board [board]
-;;   (let [subgraphs (find-connected-subgraphs-default-setting board)
-;;         dyed-subgraphs (map dye-subgraph subgraphs)]
-;;     (apply concat dyed-subgraphs)))
+(defn dye-subgraph-source-subwires [tileset]
+  (ts-map (fn [tile]
+            (if (is-source tile)
+              (assoc tile :subwires (dye-subwires-of-a-source tile tileset))
+              tile))
+          tileset))
+
+;;; implemented in two passes, to ensure that all neighbors are
+;;; properly dyed when dyeing subwires of a source.
+(defn dye-subgraph [tileset]
+  (-> tileset
+      dye-subgraph-wires-and-bulbs
+      dye-subgraph-source-subwires))
+
+(defn dye-board [board]
+  (let [subgraphs (find-connected-subgraphs-default-setting board)
+        dyed-subgraphs (map dye-subgraph subgraphs)]
+    (apply concat dyed-subgraphs)))
 
 ;; ;;;; ============== generation =========================
 

@@ -52,84 +52,183 @@
 ;;                 (> (count tiles-on-pos) 1)))
 ;;             single-ended-poses)))
 
-;; (deftest dye-one-source-one-bulb-one-bi-wire
-;;   (let [raw-board [{:id 0 :pos [0 0] :type :bulb
-;;                     :connection [:east] }
-;;                    {:id 1 :pos [1 0] :type :wire
-;;                     :connection [:west :east]}
-;;                    {:id 2 :pos [2 0] :type :source
-;;                     :connection [:west] :colour :red}]
-;;         dyed-board (dye-board raw-board)
-;;         bulb-colour (:colour (find-by-id 0 dyed-board))
-;;         wire-colour (:colour (find-by-id 1 dyed-board))]
-;;     (is (= bulb-colour :red))
-;;     (is (= wire-colour :red)))) 
+(deftest ts-make-tileset-works-well
+  (let [board (ts-make-tileset
+               [{:id 0 :pos [0 0] :type :bulb
+                 :connection [:east] }
+                {:id 1 :pos [1 0] :type :wire
+                 :connection [:west :east]}
+                {:id 2 :pos [0 0] :type :source
+                 :connection [:west] :colour :red}])]
+    (is (= (set (keys board)) #{[0 0] [1 0]}))
+    (is (= (set (map :id (get board [0 0]))) #{0 2}))))
 
-;; (deftest dye-one-source-one-bulb-one-bi-wire-wrong-direction
-;;   (let [raw-board [{:id 0 :pos [0 0] :type :bulb
-;;                     :connection [:north] }
-;;                    {:id 1 :pos [1 0] :type :wire
-;;                     :connection [:west :east]}
-;;                    {:id 2 :pos [2 0] :type :source
-;;                     :connection [:west] :colour :red}]
-;;         dyed-board (dye-board raw-board)
-;;         bulb-colour (:colour (find-by-id 0 dyed-board))
-;;         wire-colour (:colour (find-by-id 1 dyed-board))]
-;;     (is (= bulb-colour :gray))
-;;     (is (= wire-colour :red)))) 
+(deftest ts-find-by-id-works-well
+  (let [board (ts-make-tileset
+               [{:id 0 :pos [0 0] :type :bulb
+                 :connection [:east] }
+                {:id 1 :pos [1 0] :type :wire
+                 :connection [:west :east]}])
+        tile-1 (ts-find-by-id 1 board)]
+    (is (= [1 0] (:pos tile-1)))))
 
-;; (deftest dye-one-source-two-bulbs-one-tri-wire
-;;   (let [raw-board [{:id 0 :pos [0 0] :type :bulb
-;;                     :connection [:east]}
-;;                    {:id 1 :pos [1 0] :type :wire
-;;                     :connection [:west :east :south]}
-;;                    {:id 2 :pos [2 0] :type :source
-;;                     :connection [:west] :colour :red}
-;;                    {:id 3 :pos [1 1] :type :bulb
-;;                     :connection [:north]}]
-;;         dyed-board (dye-board raw-board)
-;;         bulb1-colour (:colour (find-by-id 0 dyed-board))
-;;         bulb2-colour (:colour (find-by-id 3 dyed-board))
-;;         wire-colour (:colour (find-by-id 1 dyed-board))]
-;;     (is (= bulb1-colour :red))
-;;     (is (= bulb2-colour :red))
-;;     (is (= wire-colour :red))))
+(deftest ts-map-works-well
+  (let [board (ts-make-tileset
+               [{:id 0 :pos [0 0] :type :bulb
+                 :connection [:east] }
+                {:id 1 :pos [1 0] :type :wire
+                 :connection [:west :east]}])
+        mapped-board (ts-map (fn [t]
+                               (assoc t :colour :red))
+                             board)
+        tile-0 (ts-find-by-id 0 mapped-board)
+        tile-1 (ts-find-by-id 1 mapped-board)]
+    (is (= :red (:colour tile-0)))
+    (is (= :red (:colour tile-1)))))
 
-;; (deftest dye-two-sources-one-bulb-one-tri-wire-blending
-;;   (let [raw-board [{:id 0 :pos [0 0] :type :bulb
-;;                     :connection [:east]}
-;;                    {:id 1 :pos [1 0] :type :wire
-;;                     :connection [:west :east :south]}
-;;                    {:id 2 :pos [2 0] :type :source
-;;                     :connection [:west] :colour :red}
-;;                    {:id 3 :pos [1 1] :type :source
-;;                     :connection [:north] :colour :blue}]
-;;         dyed-board (dye-board raw-board)
-;;         bulb-colour (:colour (find-by-id 0 dyed-board))
-;;         wire-colour (:colour (find-by-id 1 dyed-board))
-;;         source1-colour (:colour (find-by-id 2 dyed-board))
-;;         source2-colour (:colour (find-by-id 3 dyed-board))]
-;;     (is (= bulb-colour :magenta))
-;;     (is (= wire-colour :magenta))
-;;     (is (= source1-colour :red))
-;;     (is (= source2-colour :blue))))
+(deftest ts-filter-returns-flat-list
+  (let [board (ts-make-tileset
+               [{:id 0 :pos [0 0] :type :bulb
+                 :connection [:east] :colour :red}
+                {:id 1 :pos [1 0] :type :wire
+                 :connection [:west :east] :colour :red}
+                {:id 2 :pos [2 0] :type :wire
+                 :connection [:west :east] :colour :blue}])
+        filtered-board (ts-filter (fn [t]
+                                    (= :red (:colour t)))
+                                  board)]
+    (is (= #{0 1} (set (map :id filtered-board))))))
 
-;; (deftest dye-three-sources-one-bulb-one-quat-wire-blending
-;;   (let [raw-board [{:id 0 :pos [0 0] :type :bulb
-;;                     :connection [:east]}
-;;                    {:id 1 :pos [1 0] :type :wire
-;;                     :connection [:west :east :south :north]}
-;;                    {:id 2 :pos [2 0] :type :source
-;;                     :connection [:west] :colour :red}
-;;                    {:id 3 :pos [1 1] :type :source
-;;                     :connection [:north] :colour :blue}
-;;                    {:id 4 :pos [1 -1] :type :source
-;;                     :connection [:south] :colour :green}]
-;;         dyed-board (dye-board raw-board)
-;;         bulb-colour (:colour (find-by-id 0 dyed-board))
-;;         wire-colour (:colour (find-by-id 1 dyed-board))]
-;;     (is (= bulb-colour :white))
-;;     (is (= wire-colour :white))))
+(deftest ts-remove-by-id-works-well-when-pos-is-shared
+  (let [board (ts-make-tileset
+               [{:id 0 :pos [0 0] :type :bulb
+                 :connection [:east] :colour :red}
+                {:id 1 :pos [0 0] :type :wire
+                 :connection [:west] :colour :red}
+                {:id 2 :pos [2 0] :type :wire
+                 :connection [:west :east] :colour :blue}])
+        tile-1 (ts-find-by-id 1 board)
+        lesser-board (ts-remove-by-id board tile-1)]
+    (is (= 1 (count (get lesser-board [0 0]))))
+    (is (= 0 (:id (first (vec (get lesser-board [0 0]))))))))
+
+(deftest ts-remove-by-id-works-well-when-pos-is-single-occupied
+  (let [board (ts-make-tileset
+               [{:id 0 :pos [0 0] :type :bulb
+                 :connection [:east] :colour :red}
+                {:id 1 :pos [0 0] :type :wire
+                 :connection [:west] :colour :red}
+                {:id 2 :pos [2 0] :type :wire
+                 :connection [:west :east] :colour :blue}])
+        tile-2 (ts-find-by-id 2 board)
+        lesser-board (ts-remove-by-id board tile-2)]
+    (is (= 1 (count (keys lesser-board))))
+    (is (= [0 0] (first (vec (keys lesser-board)))))))
+
+(deftest ts-conj-works-well-when-pos-is-not-occupied-yet
+  (let [board (ts-make-tileset
+               [{:id 0 :pos [0 0] :type :bulb
+                 :connection [:east] :colour :red}])
+        new-tile {:id 1 :pos [0 1] :type :bulb
+                  :connection [:east] :colour :red}
+        bigger-board (ts-conj board new-tile)]
+    (is (= 1 (count (get bigger-board [0 1]))))
+    (is (= 2 (count (keys bigger-board))))))
+
+(deftest ts-conj-works-well-when-pos-is-to-be-shared
+  (let [board (ts-make-tileset
+               [{:id 0 :pos [0 0] :type :bulb
+                 :connection [:east] :colour :red}])
+        new-tile {:id 1 :pos [0 0] :type :bulb
+                  :connection [:east] :colour :red}
+        bigger-board (ts-conj board new-tile)
+        added-tile (ts-find-by-id 1 bigger-board)]
+    (is (= 2 (count (get bigger-board [0 0]))))
+    (is (= added-tile new-tile))))
+
+(deftest dye-one-source-one-bulb-one-bi-wire
+  (let [raw-board (ts-make-tileset
+                   [{:id 0 :pos [0 0] :type :bulb
+                     :connection [:east] }
+                    {:id 1 :pos [1 0] :type :wire
+                     :connection [:west :east]}
+                    {:id 2 :pos [2 0] :type :source
+                     :connection [:west] :colour :red}])
+        dyed-board (dye-board raw-board)
+        bulb-colour (:colour (ts-find-by-id 0 dyed-board))
+        wire-colour (:colour (ts-find-by-id 1 dyed-board))]
+    (is (= bulb-colour :red))
+    (is (= wire-colour :red)))) 
+
+(deftest dye-one-source-one-bulb-one-bi-wire-wrong-direction
+  (let [raw-board (ts-make-tileset
+                   [{:id 0 :pos [0 0] :type :bulb
+                    :connection [:north] }
+                   {:id 1 :pos [1 0] :type :wire
+                    :connection [:west :east]}
+                   {:id 2 :pos [2 0] :type :source
+                    :connection [:west] :colour :red}])
+        dyed-board (dye-board raw-board)
+        bulb-colour (:colour (ts-find-by-id 0 dyed-board))
+        wire-colour (:colour (ts-find-by-id 1 dyed-board))]
+    (is (= bulb-colour :gray))
+    (is (= wire-colour :red)))) 
+
+(deftest dye-one-source-two-bulbs-one-tri-wire
+  (let [raw-board (ts-make-tileset
+                   [{:id 0 :pos [0 0] :type :bulb
+                    :connection [:east]}
+                   {:id 1 :pos [1 0] :type :wire
+                    :connection [:west :east :south]}
+                   {:id 2 :pos [2 0] :type :source
+                    :connection [:west] :colour :red}
+                   {:id 3 :pos [1 1] :type :bulb
+                    :connection [:north]}])
+        dyed-board (dye-board raw-board)
+        bulb1-colour (:colour (ts-find-by-id 0 dyed-board))
+        bulb2-colour (:colour (ts-find-by-id 3 dyed-board))
+        wire-colour (:colour (ts-find-by-id 1 dyed-board))]
+    (is (= bulb1-colour :red))
+    (is (= bulb2-colour :red))
+    (is (= wire-colour :red))))
+
+(deftest dye-two-sources-one-bulb-one-tri-wire-blending
+  (let [raw-board (ts-make-tileset
+                   [{:id 0 :pos [0 0] :type :bulb
+                    :connection [:east]}
+                   {:id 1 :pos [1 0] :type :wire
+                    :connection [:west :east :south]}
+                   {:id 2 :pos [2 0] :type :source
+                    :connection [:west] :colour :red}
+                   {:id 3 :pos [1 1] :type :source
+                    :connection [:north] :colour :blue}])
+        dyed-board (dye-board raw-board)
+        bulb-colour (:colour (ts-find-by-id 0 dyed-board))
+        wire-colour (:colour (ts-find-by-id 1 dyed-board))
+        source1-colour (:colour (ts-find-by-id 2 dyed-board))
+        source2-colour (:colour (ts-find-by-id 3 dyed-board))]
+    (is (= bulb-colour :magenta))
+    (is (= wire-colour :magenta))
+    (is (= source1-colour :red))
+    (is (= source2-colour :blue))))
+
+(deftest dye-three-sources-one-bulb-one-quat-wire-blending
+  (let [raw-board (ts-make-tileset
+                   [{:id 0 :pos [0 0] :type :bulb
+                    :connection [:east]}
+                   {:id 1 :pos [1 0] :type :wire
+                    :connection [:west :east :south :north]}
+                   {:id 2 :pos [2 0] :type :source
+                    :connection [:west] :colour :red}
+                   {:id 3 :pos [1 1] :type :source
+                    :connection [:north] :colour :blue}
+                   {:id 4 :pos [1 -1] :type :source
+                    :connection [:south] :colour :green}])
+        dyed-board (dye-board raw-board)
+        bulb-colour (:colour (ts-find-by-id 0 dyed-board))
+        wire-colour (:colour (ts-find-by-id 1 dyed-board))]
+    (is (= bulb-colour :white))
+    (is (= wire-colour :white))))
 
 ;; (deftest dye-two-sources-two-bulbs-one-quat-wire-blending
 ;;   (let [raw-board [{:id 0 :pos [0 0] :type :bulb
