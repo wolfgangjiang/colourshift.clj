@@ -213,11 +213,16 @@
     tile
     (recur (rotate-tile-once tile) (dec times))))
 
-(defn rotate-tiles-at-pos-multiple-times [pos times tile-list]
-  (let [tiles-on-pos (get-tiles-on-pos pos tile-list)
-        remaining (list-subtract-by-id tile-list tiles-on-pos)
-        rotated-tiles (map #(rotate-tile-multiple-times % times) tiles-on-pos)]
-    (concat rotated-tiles remaining)))
+;; (defn rotate-tiles-at-pos-multiple-times [pos times tile-list]
+;;   (let [tiles-on-pos (get-tiles-on-pos pos tile-list)
+;;         remaining (list-subtract-by-id tile-list tiles-on-pos)
+;;         rotated-tiles (map #(rotate-tile-multiple-times % times) tiles-on-pos)]
+;;     (concat rotated-tiles remaining)))
+
+(defn ts-rotate-tiles-at-pos-multiple-times [pos times ts]
+  (let [tiles-on-pos (vec (get ts pos))
+        rotated-tiles (set (map #(rotate-tile-multiple-times % times) tiles-on-pos))]
+    (assoc ts pos rotated-tiles)))
 
 (defn get-pos-on-dir [origin-pos dir]
   (let [pos-diff (directions dir)
@@ -556,401 +561,410 @@
         solution (tag-solution topological-solution)]
     solution))
 
-;; (defn scramble-tiles-at-pos [pos board]
-;;   (let [maybe (rand)
-;;         times (cond
-;;                (< maybe 0.1) 0
-;;                (< maybe 0.4) 1
-;;                (< maybe 0.7) 2
-;;                :t 3)]
-;;     (rotate-tiles-at-pos-multiple-times pos times board)))
+(defn scramble-tiles-at-pos [pos ts-board]
+  (let [maybe (rand)
+        times (cond
+               (< maybe 0.1) 0
+               (< maybe 0.4) 1
+               (< maybe 0.7) 2
+               :t 3)]
+    (ts-rotate-tiles-at-pos-multiple-times pos times ts-board)))
 
-;; (defn scramble-board [board]
-;;   (let [all-poses (map :pos board)]
-;;     (reduce (fn [board-acc pos]
-;;               (scramble-tiles-at-pos pos board-acc))
-;;             board
-;;             all-poses)))
+(defn scramble-board [ts-board]
+  (let [all-poses (keys ts-board)]
+    (reduce (fn [ts-board-acc pos]
+              (scramble-tiles-at-pos pos ts-board-acc))
+            ts-board
+            all-poses)))
 
-;; (defn generate-question [x-size y-size seed-count]
-;;   (let [solution (generate-solution x-size y-size seed-count)]
-;;     (scramble-board solution)))
+(defn generate-question [x-size y-size seed-count]
+  (let [ts-solution (ts-make-tileset (generate-solution x-size y-size seed-count))]
+    (scramble-board ts-solution)))
 
 ;; ;;;; ================== rendering ======================
 
-;; (def line-width 5)
+(def line-width 5)
 
-;; (def default-stroke (BasicStroke. line-width))
+(def default-stroke (BasicStroke. line-width))
 
-;; (defmulti draw-wire
-;;   (fn [g connections start-x start-y tile-size]
-;;     connections))
+(defmulti draw-wire
+  (fn [g connections start-x start-y tile-size]
+    connections))
 
-;; (defmethod draw-wire #{:east :west}
-;;   [g connections start-x start-y tile-size]
-;;   (let [half (/ tile-size 2)]
-;;     (.drawLine g
-;;                start-x (+ start-y half)
-;;                (+ start-x tile-size) (+ start-y half))))
+(defmethod draw-wire #{:east :west}
+  [g connections start-x start-y tile-size]
+  (let [half (/ tile-size 2)]
+    (.drawLine g
+               start-x (+ start-y half)
+               (+ start-x tile-size) (+ start-y half))))
 
-;; (defmethod draw-wire #{:north :south}
-;;   [g connections start-x start-y tile-size]
-;;   (let [half (/ tile-size 2)]
-;;     (.drawLine g
-;;                (+ start-x half) start-y
-;;                (+ start-x half) (+ start-y tile-size))))
+(defmethod draw-wire #{:north :south}
+  [g connections start-x start-y tile-size]
+  (let [half (/ tile-size 2)]
+    (.drawLine g
+               (+ start-x half) start-y
+               (+ start-x half) (+ start-y tile-size))))
 
-;; (defmethod draw-wire #{:west :south}
-;;   [g connections start-x start-y tile-size]
-;;   (let [half (/ tile-size 2)]
-;;     (.drawArc g
-;;               (- start-x half) (+ start-y half)
-;;               tile-size tile-size
-;;               0 90)))
+(defmethod draw-wire #{:west :south}
+  [g connections start-x start-y tile-size]
+  (let [half (/ tile-size 2)]
+    (.drawArc g
+              (- start-x half) (+ start-y half)
+              tile-size tile-size
+              0 90)))
 
-;; (defmethod draw-wire #{:east :south}
-;;   [g connections start-x start-y tile-size]
-;;   (let [half (/ tile-size 2)]
-;;     (.drawArc g
-;;               (+ start-x half) (+ start-y half)
-;;               tile-size tile-size
-;;               90 90)))
+(defmethod draw-wire #{:east :south}
+  [g connections start-x start-y tile-size]
+  (let [half (/ tile-size 2)]
+    (.drawArc g
+              (+ start-x half) (+ start-y half)
+              tile-size tile-size
+              90 90)))
 
-;; (defmethod draw-wire #{:east :north}
-;;   [g connections start-x start-y tile-size]
-;;   (let [half (/ tile-size 2)]
-;;     (.drawArc g
-;;               (+ start-x half) (- start-y half)
-;;               tile-size tile-size
-;;               180 90)))
+(defmethod draw-wire #{:east :north}
+  [g connections start-x start-y tile-size]
+  (let [half (/ tile-size 2)]
+    (.drawArc g
+              (+ start-x half) (- start-y half)
+              tile-size tile-size
+              180 90)))
 
-;; (defmethod draw-wire #{:west :north}
-;;   [g connections start-x start-y tile-size]
-;;   (let [half (/ tile-size 2)]
-;;     (.drawArc g
-;;               (- start-x half) (- start-y half)
-;;               tile-size tile-size
-;;               270 90)))
+(defmethod draw-wire #{:west :north}
+  [g connections start-x start-y tile-size]
+  (let [half (/ tile-size 2)]
+    (.drawArc g
+              (- start-x half) (- start-y half)
+              tile-size tile-size
+              270 90)))
 
-;; (defmethod draw-wire #{:west :east :south}
-;;   [g connections start-x start-y tile-size]
-;;   (let [half (/ tile-size 2)]
-;;     (.drawLine g
-;;                start-x (+ start-y half)
-;;                (+ start-x tile-size) (+ start-y half))
-;;     (.drawLine g
-;;                (+ start-x half) (+ start-y half)
-;;                (+ start-x half) (+ start-y tile-size))))
+(defmethod draw-wire #{:west :east :south}
+  [g connections start-x start-y tile-size]
+  (let [half (/ tile-size 2)]
+    (.drawLine g
+               start-x (+ start-y half)
+               (+ start-x tile-size) (+ start-y half))
+    (.drawLine g
+               (+ start-x half) (+ start-y half)
+               (+ start-x half) (+ start-y tile-size))))
 
-;; (defmethod draw-wire #{:west :east :north}
-;;   [g connections start-x start-y tile-size]
-;;   (let [half (/ tile-size 2)]
-;;     (.drawLine g
-;;                start-x (+ start-y half)
-;;                (+ start-x tile-size) (+ start-y half))
-;;     (.drawLine g
-;;                (+ start-x half) start-y
-;;                (+ start-x half) (+ start-y half))))
+(defmethod draw-wire #{:west :east :north}
+  [g connections start-x start-y tile-size]
+  (let [half (/ tile-size 2)]
+    (.drawLine g
+               start-x (+ start-y half)
+               (+ start-x tile-size) (+ start-y half))
+    (.drawLine g
+               (+ start-x half) start-y
+               (+ start-x half) (+ start-y half))))
 
-;; (defmethod draw-wire #{:south :east :north}
-;;   [g connections start-x start-y tile-size]
-;;   (let [half (/ tile-size 2)]
-;;     (.drawLine g
-;;                (+ start-x half) (+ start-y half)
-;;                (+ start-x tile-size) (+ start-y half))
-;;     (.drawLine g
-;;                (+ start-x half) start-y
-;;                (+ start-x half) (+ start-y tile-size))))
+(defmethod draw-wire #{:south :east :north}
+  [g connections start-x start-y tile-size]
+  (let [half (/ tile-size 2)]
+    (.drawLine g
+               (+ start-x half) (+ start-y half)
+               (+ start-x tile-size) (+ start-y half))
+    (.drawLine g
+               (+ start-x half) start-y
+               (+ start-x half) (+ start-y tile-size))))
 
-;; (defmethod draw-wire #{:south :west :north}
-;;   [g connections start-x start-y tile-size]
-;;   (let [half (/ tile-size 2)]
-;;     (.drawLine g
-;;                start-x (+ start-y half)
-;;                (+ start-x half) (+ start-y half))
-;;     (.drawLine g
-;;                (+ start-x half) start-y
-;;                (+ start-x half) (+ start-y tile-size))))
+(defmethod draw-wire #{:south :west :north}
+  [g connections start-x start-y tile-size]
+  (let [half (/ tile-size 2)]
+    (.drawLine g
+               start-x (+ start-y half)
+               (+ start-x half) (+ start-y half))
+    (.drawLine g
+               (+ start-x half) start-y
+               (+ start-x half) (+ start-y tile-size))))
 
-;; (defmethod draw-wire #{:south :west :north :east}
-;;   [g connections start-x start-y tile-size]
-;;   (let [half (/ tile-size 2)
-;;         center-radius (/ tile-size 5)
-;;         center-x (+ start-x half)
-;;         center-y (+ start-y half)
-;;         end-x (+ start-x tile-size)
-;;         end-y (+ start-y tile-size)]
-;;     (.drawOval g
-;;                (- center-x center-radius) (- center-y center-radius)
-;;                (* 2 center-radius) (* 2 center-radius))
-;;     (.drawLine g
-;;                start-x center-y
-;;                (- center-x center-radius) center-y)
-;;     (.drawLine g
-;;                (+ center-x center-radius) center-y
-;;                end-x center-y)
-;;     (.drawLine g
-;;                center-x start-y
-;;                center-x (- center-y center-radius))
-;;     (.drawLine g
-;;                center-x (+ center-y center-radius)
-;;                center-x end-y)))
+(defmethod draw-wire #{:south :west :north :east}
+  [g connections start-x start-y tile-size]
+  (let [half (/ tile-size 2)
+        center-radius (/ tile-size 5)
+        center-x (+ start-x half)
+        center-y (+ start-y half)
+        end-x (+ start-x tile-size)
+        end-y (+ start-y tile-size)]
+    (.drawOval g
+               (- center-x center-radius) (- center-y center-radius)
+               (* 2 center-radius) (* 2 center-radius))
+    (.drawLine g
+               start-x center-y
+               (- center-x center-radius) center-y)
+    (.drawLine g
+               (+ center-x center-radius) center-y
+               end-x center-y)
+    (.drawLine g
+               center-x start-y
+               center-x (- center-y center-radius))
+    (.drawLine g
+               center-x (+ center-y center-radius)
+               center-x end-y)))
 
-;; (defn draw-lit-bulb [g palette-colour
-;;                      start-x start-y tile-size]
-;;   (let [bulb-size (/ tile-size 2.3)
-;;         bulb-offset (/ (- tile-size bulb-size) 2)]
-;;     (.setColor g palette-colour)
-;;     (.fillOval g
-;;                (+ start-x bulb-offset)
-;;                (+ start-y bulb-offset)
-;;                bulb-size
-;;                bulb-size)))
+(defn draw-lit-bulb [g palette-colour
+                     start-x start-y tile-size]
+  (let [bulb-size (/ tile-size 2.3)
+        bulb-offset (/ (- tile-size bulb-size) 2)]
+    (.setColor g palette-colour)
+    (.fillOval g
+               (+ start-x bulb-offset)
+               (+ start-y bulb-offset)
+               bulb-size
+               bulb-size)))
 
-;; (defn draw-unlit-bulb [g expected-palette-colour
-;;                        start-x start-y tile-size]
-;;   (let [bulb-size (/ tile-size 3)
-;;         bulb-offset (/ (- tile-size bulb-size) 2)]
-;;     (.setColor g (colour-rgbs :gray))
-;;     (.fillOval g
-;;                (+ start-x bulb-offset)
-;;                (+ start-y bulb-offset)
-;;                bulb-size
-;;                bulb-size)
-;;     (.setColor g expected-palette-colour)
-;;     (.drawOval g
-;;                (+ start-x bulb-offset)
-;;                (+ start-y bulb-offset)
-;;                bulb-size
-;;                bulb-size)))
+(defn draw-unlit-bulb [g expected-palette-colour
+                       start-x start-y tile-size]
+  (let [bulb-size (/ tile-size 3)
+        bulb-offset (/ (- tile-size bulb-size) 2)]
+    (.setColor g (colour-rgbs :gray))
+    (.fillOval g
+               (+ start-x bulb-offset)
+               (+ start-y bulb-offset)
+               bulb-size
+               bulb-size)
+    (.setColor g expected-palette-colour)
+    (.drawOval g
+               (+ start-x bulb-offset)
+               (+ start-y bulb-offset)
+               bulb-size
+               bulb-size)))
 
-;; (defn draw-source-or-bulb-connections
-;;   [g tile start-x start-y tile-size get-colour-for-con]
-;;   (.setStroke g default-stroke)
-;;   (let [half (/ tile-size 2)
-;;         center-x (+ start-x half)
-;;         center-y (+ start-y half)]
-;;     (doseq [con (:connection tile)]
-;;       (let [colour (get-colour-for-con con tile)
-;;             palette-colour (colour-rgbs colour)
-;;             pos-diff (directions con)
-;;             con-dest (pos-add [center-x center-y]
-;;                               (pos-scale-multiply pos-diff (/ tile-size 2)))
-;;             [con-dest-x con-dest-y] con-dest]
-;;         (.setColor g palette-colour)
-;;         (.drawLine g
-;;                    center-x center-y
-;;                    con-dest-x con-dest-y)))))
+(defn draw-source-or-bulb-connections
+  [g tile start-x start-y tile-size get-colour-for-con]
+  (.setStroke g default-stroke)
+  (let [half (/ tile-size 2)
+        center-x (+ start-x half)
+        center-y (+ start-y half)]
+    (doseq [con (:connection tile)]
+      (let [colour (get-colour-for-con con tile)
+            palette-colour (colour-rgbs colour)
+            pos-diff (directions con)
+            con-dest (pos-add [center-x center-y]
+                              (pos-scale-multiply pos-diff (/ tile-size 2)))
+            [con-dest-x con-dest-y] con-dest]
+        (.setColor g palette-colour)
+        (.drawLine g
+                   center-x center-y
+                   con-dest-x con-dest-y)))))
 
-;; (defmulti draw-specific-tile
-;;   (fn [g tile start-x start-y tile-size]
-;;     (:type tile)))
+(defmulti draw-specific-tile
+  (fn [g tile start-x start-y tile-size]
+    (:type tile)))
 
-;; (defmethod draw-specific-tile :source
-;;   [g tile start-x start-y tile-size]
-;;   (draw-source-or-bulb-connections g tile start-x start-y tile-size
-;;                                    (fn [dir tile]
-;;                                      ((tile :subwires) dir)))
-;;   (let [palette-colour (colour-rgbs (:colour tile))
-;;         source-size (/ tile-size 3)
-;;         source-start-x (+ start-x source-size)
-;;         source-start-y (+ start-y source-size)]
-;;     (.setColor g palette-colour)
-;;     (.fillRect g
-;;                source-start-x source-start-y
-;;                source-size source-size)))
+(defmethod draw-specific-tile :source
+  [g tile start-x start-y tile-size]
+  (draw-source-or-bulb-connections g tile start-x start-y tile-size
+                                   (fn [dir tile]
+                                     ((tile :subwires) dir)))
+  (let [palette-colour (colour-rgbs (:colour tile))
+        source-size (/ tile-size 3)
+        source-start-x (+ start-x source-size)
+        source-start-y (+ start-y source-size)]
+    (.setColor g palette-colour)
+    (.fillRect g
+               source-start-x source-start-y
+               source-size source-size)))
 
-;; (defmethod draw-specific-tile :wire
-;;   [g tile start-x start-y tile-size]
-;;   (let [connections (into (hash-set) (:connection tile))
-;;         palette-colour (colour-rgbs (:colour tile))]
-;;     (.setColor g palette-colour)
-;;     (.setStroke g default-stroke)
-;;     (draw-wire g connections start-x start-y tile-size)))
+(defmethod draw-specific-tile :wire
+  [g tile start-x start-y tile-size]
+  (let [connections (into (hash-set) (:connection tile))
+        palette-colour (colour-rgbs (:colour tile))]
+    (.setColor g palette-colour)
+    (.setStroke g default-stroke)
+    (draw-wire g connections start-x start-y tile-size)))
 
-;; (defmethod draw-specific-tile :twin-wire
-;;   [g tile start-x start-y tile-size]
-;;   (let [connections (into (hash-set) (:connection tile))
-;;         palette-colour (colour-rgbs (:colour tile))]
-;;     (.setColor g palette-colour)
-;;     (.setStroke g default-stroke)
-;;     (draw-wire g connections start-x start-y tile-size)))
+(defmethod draw-specific-tile :twin-wire
+  [g tile start-x start-y tile-size]
+  (let [connections (into (hash-set) (:connection tile))
+        palette-colour (colour-rgbs (:colour tile))]
+    (.setColor g palette-colour)
+    (.setStroke g default-stroke)
+    (draw-wire g connections start-x start-y tile-size)))
 
-;; (defmethod draw-specific-tile :bulb
-;;   [g tile start-x start-y tile-size]
-;;   (draw-source-or-bulb-connections g tile start-x start-y tile-size
-;;                                    (fn [_ tile]
-;;                                      (:colour tile)))
-;;   (let [palette-colour (colour-rgbs (:colour tile))]
-;;     (.setColor g palette-colour)
-;;     (if (= (:colour tile) (:expected-colour tile))
-;;       (draw-lit-bulb g
-;;                      palette-colour
-;;                      start-x start-y tile-size)
-;;       (draw-unlit-bulb g
-;;                        (colour-rgbs (:expected-colour tile))
-;;                        start-x start-y tile-size))))
+(defmethod draw-specific-tile :bulb
+  [g tile start-x start-y tile-size]
+  (draw-source-or-bulb-connections g tile start-x start-y tile-size
+                                   (fn [_ tile]
+                                     (:colour tile)))
+  (let [palette-colour (colour-rgbs (:colour tile))]
+    (.setColor g palette-colour)
+    (if (= (:colour tile) (:expected-colour tile))
+      (draw-lit-bulb g
+                     palette-colour
+                     start-x start-y tile-size)
+      (draw-unlit-bulb g
+                       (colour-rgbs (:expected-colour tile))
+                       start-x start-y tile-size))))
 
-;; (defn draw-tile-border [g start-x start-y tile-size]
-;;   (.setStroke g (BasicStroke. 1))
-;;   (.setColor g Color/WHITE)
-;;   (.drawRect g start-x start-y tile-size tile-size))
+(defn draw-tile-border [g start-x start-y tile-size]
+  (.setStroke g (BasicStroke. 1))
+  (.setColor g Color/WHITE)
+  (.drawRect g start-x start-y tile-size tile-size))
 
-;; (defn draw-tile [g tile tile-size]
-;;   (let [[pos-x pos-y] (:pos tile)
-;;         start-x (* pos-x tile-size)
-;;         start-y (* pos-y tile-size)]
-;;     (draw-tile-border g start-x start-y tile-size)
-;;     (draw-specific-tile g tile start-x start-y tile-size)))
+(defn draw-tile [g tile tile-size]
+  (let [[pos-x pos-y] (:pos tile)
+        start-x (* pos-x tile-size)
+        start-y (* pos-y tile-size)]
+    (draw-tile-border g start-x start-y tile-size)
+    (draw-specific-tile g tile start-x start-y tile-size)))
 
-;; (defn draw-board [g board tile-size]
-;;   (doseq [tile (sort-by :id (dye-board board))]
-;;     (draw-tile g tile tile-size)))
+(defn draw-board [g board tile-size]
+  (doseq [tile (sort-by :id (ts-flat-tile-list (dye-board board)))]
+    (draw-tile g tile tile-size)))
 
-;; (defn clear-screen [g max-x max-y]
-;;   (.setBackground g (Color/BLACK))
-;;   (.clearRect g 0 0 max-x max-y))
+(defn clear-screen [g max-x max-y]
+  (.setBackground g (Color/BLACK))
+  (.clearRect g 0 0 max-x max-y))
 
 ;; ;;;; ================ input handler ======================
 
-;; (defn handle-mouse-click [gs x y]
-;;   (let [tile-size (get-in gs [:config :tile-size])
-;;         old-board (:board gs)
-;;         pos-x (int (/ x tile-size))
-;;         pos-y (int (/ y tile-size))
-;;         pos [pos-x pos-y]
-;;         new-board (rotate-tiles-at-pos-multiple-times pos 1 old-board)]
-;;     (assoc gs :board new-board)))
+(defn handle-mouse-click [gs x y]
+  (let [tile-size (get-in gs [:config :tile-size])
+        old-board (:board gs)
+        pos-x (int (/ x tile-size))
+        pos-y (int (/ y tile-size))
+        pos [pos-x pos-y]
+        new-board (ts-rotate-tiles-at-pos-multiple-times pos 1 old-board)]
+    (assoc gs :board new-board)))
 
-;; (defn handle-one-input [gs input]
-;;   (case (:type input)
-;;     :mouse-clicked (let [info (:info input)]
-;;                      (handle-mouse-click gs (.getX info) (.getY info)))
-;;     gs))
+(defn handle-one-input [gs input]
+  (case (:type input)
+    :mouse-clicked (let [info (:info input)]
+                     (handle-mouse-click gs (.getX info) (.getY info)))
+    gs))
 
 ;; ;;;; ================ engine interface ===================
 
-;; (defn game-init [config]
-;;   {:config config
-;;    :board (:initial-board config)
-;;    :fps -1})
+(defn game-init [config]
+  {:config config
+   :board (:initial-board config)
+   :fps -1})
 
-;; (defn game-handle-user-inputs [gs inputs]
-;;   (reduce handle-one-input gs inputs))
+(defn game-handle-user-inputs [gs inputs]
+  (reduce handle-one-input gs inputs))
 
-;; (defn game-handle-tick [gs dt]
-;;   gs)
+(defn game-handle-tick [gs dt]
+  gs)
 
-;; (defn game-put-engine-info [gs engine-info]
-;;   (assoc gs :fps (:fps engine-info)))
+(defn game-put-engine-info [gs engine-info]
+  (assoc gs :fps (:fps engine-info)))
 
-;; (defn game-render [gs g]
-;;   (let [config (:config gs)
-;;         board (:board gs)
-;;         {:keys [max-x max-y tile-size]} config]
-;;     (clear-screen g max-x max-y)
-;;     (draw-board g board tile-size)))
+(defn game-render [gs g]
+  (let [config (:config gs)
+        board (:board gs)
+        {:keys [max-x max-y tile-size]} config]
+    (clear-screen g max-x max-y)
+    (draw-board g board tile-size)))
 
-;; (defn new-colourshift [config]
-;;   (let [methods {:init game-init
-;;                  :handle-user-inputs game-handle-user-inputs
-;;                  :handle-tick game-handle-tick
-;;                  :put-engine-info game-put-engine-info
-;;                  :render game-render}]
-;;     (new-game config methods)))
+(defn new-colourshift [config]
+  (let [methods {:init game-init
+                 :handle-user-inputs game-handle-user-inputs
+                 :handle-tick game-handle-tick
+                 :put-engine-info game-put-engine-info
+                 :render game-render}]
+    (new-game config methods)))
 
-;; (def manual-test-board
-;;   [{:id 0 :pos [0 0] :type :source
-;;     :connection [:east :south] :colour :red}
-;;    {:id 1 :pos [1 1] :type :wire
-;;     :connection [:west :east]}
-;;    {:id 2 :pos [2 2] :type :wire
-;;     :connection [:north :south]}
-;;    {:id 3 :pos [2 1] :type :wire
-;;     :connection [:west :south]}
-;;    {:id 4 :pos [0 1] :type :wire
-;;     :connection [:east :south]}
-;;    {:id 5 :pos [0 3] :type :wire
-;;     :connection [:east :north]}
-;;    {:id 6 :pos [2 3] :type :wire
-;;     :connection [:west :north]}
-;;    {:id 7 :pos [0 2] :type :wire
-;;     :connection [:north :south]}
-;;    {:id 8 :pos [1 3] :type :wire
-;;     :connection [:west :east]}
-;;    {:id 9 :pos [4 1] :type :wire
-;;     :connection [:west :east]}
-;;    {:id 10 :pos [5 2] :type :wire
-;;     :connection [:north :south]}
-;;    {:id 11 :pos [5 1] :type :wire
-;;     :connection [:west :south]}
-;;    {:id 12 :pos [3 1] :type :wire
-;;     :connection [:east :south]}
-;;    {:id 13 :pos [3 3] :type :wire
-;;     :connection [:east :north]}
-;;    {:id 14 :pos [5 3] :type :wire
-;;     :connection [:west :north]}
-;;    {:id 15 :pos [3 2] :type :source
-;;     :connection [:north] :colour :blue}
-;;    {:id 16 :pos [4 3] :type :wire
-;;     :connection [:west :east]}
-;;    {:id 17 :pos [1 0] :type :bulb
-;;     :connection [:west] :expected-colour :red}
-;;    {:id 18 :pos [2 0] :type :bulb
-;;     :connection [:east] :expected-colour :red}
-;;    {:id 19 :pos [3 0] :type :source
-;;     :connection [:west] :colour :green}
+(def manual-test-board
+  (ts-make-tileset
+   [{:id 0 :pos [0 0] :type :source
+     :connection [:east :south] :colour :red}
+    {:id 1 :pos [1 1] :type :wire
+     :connection [:west :east]}
+    {:id 2 :pos [2 2] :type :wire
+     :connection [:north :south]}
+    {:id 3 :pos [2 1] :type :wire
+     :connection [:west :south]}
+    {:id 4 :pos [0 1] :type :wire
+     :connection [:east :south]}
+    {:id 5 :pos [0 3] :type :wire
+     :connection [:east :north]}
+    {:id 6 :pos [2 3] :type :wire
+     :connection [:west :north]}
+    {:id 7 :pos [0 2] :type :wire
+     :connection [:north :south]}
+    {:id 8 :pos [1 3] :type :wire
+     :connection [:west :east]}
+    {:id 9 :pos [4 1] :type :wire
+     :connection [:west :east]}
+    {:id 10 :pos [5 2] :type :wire
+     :connection [:north :south]}
+    {:id 11 :pos [5 1] :type :wire
+     :connection [:west :south]}
+    {:id 12 :pos [3 1] :type :wire
+     :connection [:east :south]}
+    {:id 13 :pos [3 3] :type :wire
+     :connection [:east :north]}
+    {:id 14 :pos [5 3] :type :wire
+     :connection [:west :north]}
+    {:id 15 :pos [3 2] :type :source
+     :connection [:north] :colour :blue}
+    {:id 16 :pos [4 3] :type :wire
+     :connection [:west :east]}
+    {:id 17 :pos [1 0] :type :bulb
+     :connection [:west] :expected-colour :red}
+    {:id 18 :pos [2 0] :type :bulb
+     :connection [:east] :expected-colour :red}
+    {:id 19 :pos [3 0] :type :source
+     :connection [:west] :colour :green}
 
-;;    {:id 20 :pos [0 4] :type :source
-;;     :connection [:south] :colour :blue}
-;;    {:id 21 :pos [1 4] :type :wire
-;;     :connection [:west :east :south]}
-;;    {:id 22 :pos [2 4] :type :bulb
-;;     :connection [:west] :expected-colour :magenta}
-;;    {:id 23 :pos [1 5] :type :wire
-;;     :connection [:north :west :east]}
-;;    {:id 24 :pos [0 5] :type :wire
-;;     :connection [:north :south :east]}
-;;    {:id 25 :pos [2 5] :type :wire
-;;     :connection [:north :south :west]}
-;;    {:id 26 :pos [4 4] :type :wire
-;;     :connection [:west :east :south]}
-;;    {:id 27 :pos [5 4] :type :bulb
-;;     :connection [:west] :expected-colour :magenta}
-;;    {:id 28 :pos [4 5] :type :wire
-;;     :connection [:north :west :east]}
-;;    {:id 29 :pos [3 5] :type :wire
-;;     :connection [:north :south :east]}
-;;    {:id 30 :pos [5 5] :type :wire
-;;     :connection [:north :south :west]}
-;;    {:id 31 :pos [0 6] :type :wire
-;;     :connection [:north :south :east :west]}
-;;    {:id 32 :pos [3 6] :type :wire
-;;     :connection [:north :south :east :west]}
-;;    {:id 33 :pos [1 6] :type :source
-;;     :connection [:west] :colour :red}
+    {:id 20 :pos [0 4] :type :source
+     :connection [:south] :colour :blue}
+    {:id 21 :pos [1 4] :type :wire
+     :connection [:west :east :south]}
+    {:id 22 :pos [2 4] :type :bulb
+     :connection [:west] :expected-colour :magenta}
+    {:id 23 :pos [1 5] :type :wire
+     :connection [:north :west :east]}
+    {:id 24 :pos [0 5] :type :wire
+     :connection [:north :south :east]}
+    {:id 25 :pos [2 5] :type :wire
+     :connection [:north :south :west]}
+    {:id 26 :pos [4 4] :type :wire
+     :connection [:west :east :south]}
+    {:id 27 :pos [5 4] :type :bulb
+     :connection [:west] :expected-colour :magenta}
+    {:id 28 :pos [4 5] :type :wire
+     :connection [:north :west :east]}
+    {:id 29 :pos [3 5] :type :wire
+     :connection [:north :south :east]}
+    {:id 30 :pos [5 5] :type :wire
+     :connection [:north :south :west]}
+    {:id 31 :pos [0 6] :type :wire
+     :connection [:north :south :east :west]}
+    {:id 32 :pos [3 6] :type :wire
+     :connection [:north :south :east :west]}
+    {:id 33 :pos [1 6] :type :source
+     :connection [:west] :colour :red}
 
-;;    {:id 34 :pos [0 7] :type :twin-wire
-;;     :connection [:north :south]}
-;;    {:id 35 :pos [0 7] :type :twin-wire
-;;     :connection [:west :east]}
-;;    {:id 36 :pos [2 6] :type :wire
-;;     :connection [:north :south]}
-;;    {:id 37 :pos [2 7] :type :twin-wire
-;;     :connection [:west :north]}
-;;    {:id 38 :pos [2 7] :type :twin-wire
-;;     :connection [:east :south]}
-;;    {:id 39 :pos [1 7] :type :twin-wire
-;;     :connection [:west :south]}
-;;    {:id 40 :pos [1 7] :type :twin-wire
-;;     :connection [:east :north]}
-;;    ])
+    {:id 34 :pos [0 7] :type :twin-wire
+     :connection [:north :south]}
+    {:id 35 :pos [0 7] :type :twin-wire
+     :connection [:west :east]}
+    {:id 36 :pos [2 6] :type :wire
+     :connection [:north :south]}
+    {:id 37 :pos [2 7] :type :twin-wire
+     :connection [:west :north]}
+    {:id 38 :pos [2 7] :type :twin-wire
+     :connection [:east :south]}
+    {:id 39 :pos [1 7] :type :twin-wire
+     :connection [:west :south]}
+    {:id 40 :pos [1 7] :type :twin-wire
+     :connection [:east :north]}
+    ]))
 
-;; (def random-solution-board (generate-question 16 16 8))
+(def random-solution-board (generate-question 16 16 8))
 
-;; (defn start []
-;;   (main-loop (new-colourshift {:max-x 850
-;;                                :max-y 850
-;;                                :best-fps 60
-;;                                :tile-size 50
-;;                                :initial-board random-solution-board})))
+(defn benchmark []
+  (let [board (generate-question 16 16 8)]
+    (let [start-time (System/currentTimeMillis)]
+      (doseq [_ (range 100)]
+        (prn (count (find-connected-subgraphs board))))
+      (let [finish-time (System/currentTimeMillis)]
+        (prn [:elapsed (- finish-time start-time)])))))
+
+(defn start []
+  (main-loop (new-colourshift {:max-x 850
+                               :max-y 850
+                               :best-fps 60
+                               :tile-size 50
+                               :initial-board random-solution-board})))

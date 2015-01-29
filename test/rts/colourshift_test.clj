@@ -41,8 +41,8 @@
 (defn generate-test-solution []
   (generate-solution 10 10 4))
 
-;; (defn generate-test-question []
-;;   (generate-question 10 10 4))
+(defn generate-test-question []
+  (generate-question 10 10 4))
 
 ;; (defn all-single-ended-tiles-in-subgraph-is-multi-shared [subgraph whole-board]
 ;;   (let [single-ended-tiles (filter is-single-ended subgraph)
@@ -660,57 +660,58 @@
            #{:north :west}))
     (is (= :wire (:type rotated-tile)))))
 
-;; (deftest multiple-tiles-can-rotate-synchronizedly
-;;   (let [tile-1 {:id 0
-;;                 :pos [0 0]
-;;                 :type :wire
-;;                 :connection [:south]}
-;;         tile-2 {:id 1
-;;                 :pos [0 0]
-;;                 :type :wire
-;;                 :connection [:west]}
-;;         tile-3 {:id 2
-;;                 :pos [0 1]
-;;                 :type :wire
-;;                 :connection [:east :north]}
-;;         subgraph (ts-make-tileset [tile-1 tile-2 tile-3])
-;;         rotated-tiles (ts-rotate-tiles-at-pos-multiple-times [0 0] 3 subgraph)]
-;;     (is (= (into (hash-set) (map #(into (hash-set) (:connection %)) rotated-tiles))
-;;            #{#{:south} #{:east} #{:east :north}}))))
+(deftest multiple-tiles-can-rotate-synchronizedly
+  (let [tile-1 {:id 0
+                :pos [0 0]
+                :type :wire
+                :connection [:south]}
+        tile-2 {:id 1
+                :pos [0 0]
+                :type :wire
+                :connection [:west]}
+        tile-3 {:id 2
+                :pos [0 1]
+                :type :wire
+                :connection [:east :north]}
+        subgraph (ts-make-tileset [tile-1 tile-2 tile-3])
+        rotated-ts (ts-rotate-tiles-at-pos-multiple-times [0 0] 3 subgraph)]
+    (is (= (into (hash-set) (map #(into (hash-set) (:connection %)) (ts-flat-tile-list rotated-ts)))
+           #{#{:south} #{:east} #{:east :north}}))))
 
-;; (deftest question-board-has-enough-tiles
-;;   (dotimes [_ quick-check-times]
-;;     (let [question (generate-test-question)
-;;           all-poses (distinct (map :pos question))]
-;;       (is (= (count all-poses) 100)))))
+(deftest question-board-has-enough-tiles
+  (dotimes [_ quick-check-times]
+    (let [question (ts-flat-tile-list (generate-test-question))
+          all-poses (distinct (map :pos question))]
+      (is (= (count all-poses) 100)))))
 
-;; (deftest tiles-on-same-pos-should-not-have-intersected-connections-in-question-board
-;;   (dotimes [_ quick-check-times]
-;;     (let [question (generate-test-question)
-;;           all-poses (distinct (map :pos question))]
-;;       (doseq [pos all-poses]
-;;         (let [tiles (get-tiles-on-pos pos question)
-;;               all-connections (apply concat (map :connection tiles))]
-;;           (is (= (count all-connections)
-;;                  (count (distinct all-connections)))))))))
+(deftest tiles-on-same-pos-should-not-have-intersected-connections-in-question-board
+  (dotimes [_ quick-check-times]
+    (let [question (ts-flat-tile-list (generate-test-question))
+          all-poses (distinct (map :pos question))]
+      (doseq [pos all-poses]
+        (let [tiles (get-tiles-on-pos pos question)
+              all-connections (apply concat (map :connection tiles))]
+          (is (= (count all-connections)
+                 (count (distinct all-connections)))))))))
 
-;; (deftest tiles-on-same-pos-should-have-same-type-in-question-board
-;;   (dotimes [_ quick-check-times]
-;;     (let [question (generate-test-question)
-;;           all-poses (distinct (map :pos question))]
-;;       (doseq [pos all-poses]
-;;         (let [tiles (get-tiles-on-pos pos question)
-;;               all-types (distinct (map :type tiles))]
-;;           (is (= (count all-types) 1))
-;;           (when (> (count tiles) 1)
-;;             (is (contains? #{:source :twin-wire} (first all-types)))))))))
+(deftest tiles-on-same-pos-should-have-same-type-in-question-board
+  (dotimes [_ quick-check-times]
+    (let [question (ts-flat-tile-list (generate-test-question))
+          all-poses (distinct (map :pos question))]
+      (doseq [pos all-poses]
+        (let [tiles (get-tiles-on-pos pos question)
+              all-types (distinct (map :type tiles))]
+          (is (= (count all-types) 1))
+          (when (> (count tiles) 1)
+            (is (contains? #{:source :twin-wire} (first all-types)))))))))
 
-;; (deftest issue-directly-connected-sources-have-their-subwires-dyed-correctly
-;;   (let [tile-list [{:id 0 :pos [0 0] :type :source
-;;                     :connection [:east] :colour :red}
-;;                    {:id 1 :pos [1 0] :type :source
-;;                     :connection [:west] :colour :green}]
-;;         subwires-of-tile-0 (dye-subwires-of-a-source 
-;;                      (find-by-id 0 tile-list)
-;;                      tile-list)]
-;;     (is (= subwires-of-tile-0 {:east :yellow}))))
+(deftest issue-directly-connected-sources-have-their-subwires-dyed-correctly
+  (let [tileset (ts-make-tileset
+                 [{:id 0 :pos [0 0] :type :source
+                   :connection [:east] :colour :red}
+                  {:id 1 :pos [1 0] :type :source
+                   :connection [:west] :colour :green}])
+        subwires-of-tile-0 (dye-subwires-of-a-source 
+                            (ts-find-by-id 0 tileset)
+                            tileset)]
+    (is (= subwires-of-tile-0 {:east :yellow}))))
