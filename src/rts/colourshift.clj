@@ -816,9 +816,22 @@
   (.setBackground g (Color/BLACK))
   (.clearRect g 0 0 max-x max-y))
 
-;; ;;;; ================ input handler ======================
+;;;; ================== mode render ======================
 
-(defn handle-mouse-click [gs x y]
+(defmulti mode-render 
+  (fn [gs g]
+    (:mode gs)))
+
+(defmethod mode-render :playing [gs g]
+  (let [config (:config gs)
+        board (:board gs)
+        {:keys [max-x max-y tile-size]} config]
+    (clear-screen g max-x max-y)
+    (draw-board g board tile-size)))
+
+;;;; ================ mode input handler ================
+
+(defn handle-mouse-click-and-rotate [gs x y]
   (let [tile-size (get-in gs [:config :tile-size])
         old-board (:board gs)
         pos-x (int (/ x tile-size))
@@ -827,18 +840,33 @@
         new-board (ts-rotate-tiles-at-pos-multiple-times pos 1 old-board)]
     (assoc gs :board new-board)))
 
-(defn handle-one-input [gs input]
+(defmulti mode-handle-input
+  (fn [gs g]
+    (:mode gs)))
+
+(defmethod mode-handle-input :playing [gs input]
   (case (:type input)
     :mouse-clicked (let [info (:info input)]
-                     (handle-mouse-click gs (.getX info) (.getY info)))
+                     (handle-mouse-click-and-rotate gs (.getX info) (.getY info)))
     gs))
 
-;; ;;;; ================ engine interface ===================
+;;;; ================ input handler =====================
+
+(defn handle-one-input [gs input]
+  (mode-handle-input gs input))
+
+;;;; ================ engine interface ===================
 
 (defn game-init [config]
   {:config config
+   :mode :playing
    :board (:initial-board config)
    :fps -1})
+
+(defn game-reset [gs]
+  (-> gs
+      (assoc :mode :playing)
+      (assoc :board (generate-question 16 16 8))))
 
 (defn game-handle-user-inputs [gs inputs]
   (reduce handle-one-input gs inputs))
@@ -850,11 +878,7 @@
   (assoc gs :fps (:fps engine-info)))
 
 (defn game-render [gs g]
-  (let [config (:config gs)
-        board (:board gs)
-        {:keys [max-x max-y tile-size]} config]
-    (clear-screen g max-x max-y)
-    (draw-board g board tile-size)))
+  (mode-render gs g))
 
 (defn new-colourshift [config]
   (let [methods {:init game-init
