@@ -184,6 +184,14 @@
 (defn is-twin-wire [tile]
   (is-of-type tile :twin-wire))
 
+(defn is-bulb-lit [tile]
+  (and (:expected-colour tile)
+       (= (:colour tile) (:expected-colour tile))))
+
+(defn victory? [dyed-board]
+  (let [bulbs (ts-filter is-bulb dyed-board)]
+    (every? is-bulb-lit bulbs)))
+
 (defn get-tiles-on-pos [pos tile-list]
   (filter #(= pos (:pos %)) tile-list))
 
@@ -788,7 +796,7 @@
                                      (:colour tile)))
   (let [palette-colour (colour-rgbs (:colour tile))]
     (.setColor g palette-colour)
-    (if (= (:colour tile) (:expected-colour tile))
+    (if (is-bulb-lit tile)
       (draw-lit-bulb g
                      palette-colour
                      start-x start-y tile-size)

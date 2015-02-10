@@ -715,3 +715,25 @@
                             (ts-find-by-id 0 tileset)
                             tileset)]
     (is (= subwires-of-tile-0 {:east :yellow}))))
+
+(deftest victory-check-negative
+  (let [raw-board (ts-make-tileset
+                   [{:id 0 :pos [0 0] :type :bulb
+                     :connection [:east] :expected-colour :red}
+                    {:id 1 :pos [0 1] :type :source
+                     :connection [:west :east] :colour :red}
+                    {:id 2 :pos [0 2] :type :bulb
+                     :connection [:west] :expected-colour :blue}])
+        dyed-board (dye-board raw-board)]
+    (is (not (victory? dyed-board)))))
+
+(deftest victory-check-positive
+  (let [raw-board (ts-make-tileset
+                   [{:id 0 :pos [0 0] :type :bulb
+                     :connection [:east] :expected-colour :red}
+                    {:id 1 :pos [1 0] :type :source
+                     :connection [:west :east] :colour :red}
+                    {:id 2 :pos [2 0] :type :bulb
+                     :connection [:west] :expected-colour :red}])
+        dyed-board (dye-board raw-board)]
+    (is (victory? dyed-board))))
