@@ -737,3 +737,43 @@
                      :connection [:west] :expected-colour :red}])
         dyed-board (dye-board raw-board)]
     (is (victory? dyed-board))))
+
+(deftest message-queue-works-well
+  (queue-register :test-handler
+                  (fn [gs message]
+                    (assoc gs :q-info (:info message))))
+  (queue-send :test-handler {:info "test-q"})
+  (let [gs {:already-has "some content"}
+        changed-gs (queue-poll-once gs)]
+    (is (= changed-gs
+           {:already-has "some content"
+            :q-info "test-q"}))))
+                  
+(deftest message-queue-can-handle-recurred-poll
+  (queue-register :recurring
+                  (fn [gs message]
+                    (queue-send :next {:info 2})
+                    (update-in gs [:handled] conj (:info message))))
+  (queue-register :next
+                  (fn [gs message]
+                    (update-in gs [:handled] conj (:info message))))
+  (queue-send :recurring {:info 1})
+  (let [gs {:handled [0]}
+        changed-gs (queue-poll gs)]
+    (is (= changed-gs
+           {:handled [0 1 2]}))))
+
+(deftest message-queue-broadcasts-same-message-to-multiple-handlers
+  (queue-register :broadcast
+                  (fn [gs message]
+                    (assoc gs :handled-1 (:info message))))
+  (queue-register :broadcast
+                  (fn [gs message]
+                    (assoc gs :handled-2 (:info message))))
+  (queue-send :broadcast {:info "x"})
+  (let [gs {:already-has "some content"}
+        changed-gs (queue-poll gs)]
+    (is (= changed-gs
+           {:already-has "some content"
+            :handled-1 "x"
+            :handled-2 "x"}))))

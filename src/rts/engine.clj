@@ -2,9 +2,46 @@
   (:import [java.util Date]
            [java.awt RenderingHints]))
 
+;;;; ================== misc ==========================
+
 (defn trace [info obj]
   (prn info obj)
   obj)
+
+;;;; ============= message queue ======================
+
+(def +engine-queue+ (atom []))
+
+(def +engine-queue-handlers+ (atom {}))
+
+(defn queue-register [key f]
+  (swap! +engine-queue-handlers+ 
+         (fn [handler-coll]
+           (if (contains? handler-coll key)
+             (update-in handler-coll [key] conj f)
+             (assoc handler-coll key [f])))))
+
+(defn queue-send [key message]
+  (swap! +engine-queue+ conj {:key key
+                              :message-body message}))
+
+(defn queue-poll-once [gs]
+  (if (empty? @+engine-queue+)
+    gs
+    (let [message (first @+engine-queue+)
+          handlers (get @+engine-queue-handlers+ (:key message))]
+      (swap! +engine-queue+ rest)
+      (reduce (fn [gs handle-message]
+                (handle-message gs (:message-body message)))
+              gs handlers))))
+
+(defn queue-poll [gs]
+  (if (empty? @+engine-queue+)
+    gs
+    (recur (queue-poll-once gs))))
+        
+
+;;;; ================== main ==========================
 
 (defn new-timestep [best-fps]
   (let [best-frame-interval (/ 1000.0 best-fps)
