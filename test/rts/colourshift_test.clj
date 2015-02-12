@@ -60,6 +60,28 @@
                 (> (count tiles-on-pos) 1)))
             single-ended-poses)))
 
+(def test-gs {:mode :playing
+              :board {}
+              :config {:max-x 850
+                       :max-y 850
+                       :best-fps 60
+                       :tile-size 50
+                       :initial-board {}}})
+
+(defn make-test-mouse-input-at-board [pos config]
+  (let [tile-size (:tile-size config)
+        [mouse-x mouse-y] (pos-scale-multiply pos tile-size)
+        dummy-source (javax.swing.JPanel.)
+        mouse-event (java.awt.event.MouseEvent.
+                     dummy-source 0 0 0 mouse-x mouse-y 1 false)]
+    {:type :mouse-clicked
+     :info mouse-event}))
+
+
+;;;; ===================================================
+
+
+
 (deftest ts-make-tileset-works-well
   (let [board (ts-make-tileset
                [{:id 0 :pos [0 0] :type :bulb
@@ -166,7 +188,7 @@
         bulb-colour (:colour (ts-find-by-id 0 dyed-board))
         wire-colour (:colour (ts-find-by-id 1 dyed-board))]
     (is (= bulb-colour :red))
-    (is (= wire-colour :red)))) 
+    (is (= wire-colour :red))))
 
 (deftest dye-one-source-one-bulb-one-bi-wire-wrong-direction
   (let [raw-board (ts-make-tileset
@@ -180,7 +202,7 @@
         bulb-colour (:colour (ts-find-by-id 0 dyed-board))
         wire-colour (:colour (ts-find-by-id 1 dyed-board))]
     (is (= bulb-colour :gray))
-    (is (= wire-colour :red)))) 
+    (is (= wire-colour :red))))
 
 (deftest dye-one-source-two-bulbs-one-tri-wire
   (let [raw-board (ts-make-tileset
@@ -486,7 +508,7 @@
     (is (or (= subgraph-after-ids #{0 1 2})
             (= subgraph-after-ids #{0 1 3})))
     (is (= (count proto-pool-after) 1))))
-           
+
 (deftest one-spurt-growth-of-subgraph-no-room-for-growth
   (let [subgraph-before [{:id 0 :pos [0 0] :type :wire
                           :connection [:east :south]}
@@ -535,7 +557,7 @@
           min-size (first subgraph-sizes)
           max-size (last subgraph-sizes)]
       (is (>= max-size (* 2 min-size))))))
-  
+
 (deftest correctly-detects-graph-cycle-positive
   (let [tile-list [{:id 0 :pos [0 0]
                    :connection [:east :south]}
@@ -711,7 +733,7 @@
                    :connection [:east] :colour :red}
                   {:id 1 :pos [1 0] :type :source
                    :connection [:west] :colour :green}])
-        subwires-of-tile-0 (dye-subwires-of-a-source 
+        subwires-of-tile-0 (dye-subwires-of-a-source
                             (ts-find-by-id 0 tileset)
                             tileset)]
     (is (= subwires-of-tile-0 {:east :yellow}))))
@@ -748,7 +770,7 @@
     (is (= changed-gs
            {:already-has "some content"
             :q-info "test-q"}))))
-                  
+
 (deftest message-queue-can-handle-recurred-poll
   (queue-register :recurring
                   (fn [gs message]
@@ -777,3 +799,17 @@
            {:already-has "some content"
             :handled-1 "x"
             :handled-2 "x"}))))
+
+(deftest all-bulb-lit-should-lead-to-victory-mode
+  (let [board (ts-make-tileset
+                   [{:id 0 :pos [0 0] :type :bulb
+                     :connection [:east] :expected-colour :red}
+                    {:id 1 :pos [1 0] :type :source
+                     :connection [:west :east] :colour :red}
+                    {:id 2 :pos [2 0] :type :bulb
+                     :connection [:south] :expected-colour :red}])
+        mouse-input (make-test-mouse-input-at-board [2 0] (:config test-gs))
+        gs (merge test-gs {:mode :playing
+                           :board board})
+        next-gs (handle-one-input gs mouse-input)]
+    (is (= (:mode next-gs) :victory))))

@@ -816,8 +816,8 @@
     (draw-tile-border g start-x start-y tile-size)
     (draw-specific-tile g tile start-x start-y tile-size)))
 
-(defn draw-board [g board tile-size]
-  (doseq [tile (sort-by :id (ts-flat-tile-list (dye-board board)))]
+(defn draw-board [g dyed-board tile-size]
+  (doseq [tile (sort-by :id (ts-flat-tile-list dyed-board))]
     (draw-tile g tile tile-size)))
 
 (defn clear-screen [g max-x max-y]
@@ -832,21 +832,37 @@
 
 (defmethod mode-render :playing [gs g]
   (let [config (:config gs)
-        board (:board gs)
+        board (or (:dyed-board gs) (dye-board (:board gs)))
         {:keys [max-x max-y tile-size]} config]
     (clear-screen g max-x max-y)
     (draw-board g board tile-size)))
 
+;;;; ============== queue event handler =================
+
+(defn victory-handler [gs _]
+  (assoc gs :mode :victory))
+
+(queue-register :victory victory-handler)
+
+(defn handle-mouse-click-and-rotate [gs pos]
+  (let [old-board (:board gs)
+        new-board (ts-rotate-tiles-at-pos-multiple-times pos 1 old-board)
+        dyed-new-board (dye-board new-board)]
+    (when (victory? dyed-new-board)
+      (queue-send :victory {}))
+    (merge gs {:board new-board
+               :dyed-board dyed-new-board})))
+
+(queue-register :click-rotate handle-mouse-click-and-rotate)
+
 ;;;; ================ mode input handler ================
 
-(defn handle-mouse-click-and-rotate [gs x y]
-  (let [tile-size (get-in gs [:config :tile-size])
-        old-board (:board gs)
-        pos-x (int (/ x tile-size))
-        pos-y (int (/ y tile-size))
-        pos [pos-x pos-y]
-        new-board (ts-rotate-tiles-at-pos-multiple-times pos 1 old-board)]
-    (assoc gs :board new-board)))
+(defn parse-mouse-event-to-board-pos [config mouse-event]
+  (let [tile-size (:tile-size config)
+        [mx my] [(.getX mouse-event) (.getY mouse-event)]
+        pos-x (int (/ mx tile-size))
+        pos-y (int (/ my tile-size))]
+    [pos-x pos-y]))
 
 (defmulti mode-handle-input
   (fn [gs g]
@@ -854,14 +870,15 @@
 
 (defmethod mode-handle-input :playing [gs input]
   (case (:type input)
-    :mouse-clicked (let [info (:info input)]
-                     (handle-mouse-click-and-rotate gs (.getX info) (.getY info)))
-    gs))
+    :mouse-clicked (let [pos (parse-mouse-event-to-board-pos (:config gs) (:info input))]
+                     (queue-send :click-rotate pos))
+    nil))
 
 ;;;; ================ input handler =====================
 
 (defn handle-one-input [gs input]
-  (mode-handle-input gs input))
+  (mode-handle-input gs input)
+  (queue-poll gs))
 
 ;;;; ================ engine interface ===================
 
@@ -985,14 +1002,6 @@
     ]))
 
 (def random-solution-board (generate-question 16 16 8))
-
-(defn benchmark []
-  (let [board (generate-question 16 16 8)]
-    (let [start-time (System/currentTimeMillis)]
-      (doseq [_ (range 100)]
-        (prn (count (find-connected-subgraphs board))))
-      (let [finish-time (System/currentTimeMillis)]
-        (prn [:elapsed (- finish-time start-time)])))))
 
 (defn start []
   (main-loop (new-colourshift {:max-x 850

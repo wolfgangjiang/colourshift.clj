@@ -8,6 +8,13 @@
   (prn info obj)
   obj)
 
+(defmacro with-benchmark [info & body]
+  `(let [start-time# (System/currentTimeMillis)
+         value# (do ~@body)]
+     (let [finish-time# (System/currentTimeMillis)]
+       (prn [:elapsed ~info (- finish-time# start-time#)]))
+     value#))
+
 ;;;; ============= message queue ======================
 
 (def +engine-queue+ (atom []))
@@ -39,7 +46,6 @@
   (if (empty? @+engine-queue+)
     gs
     (recur (queue-poll-once gs))))
-        
 
 ;;;; ================== main ==========================
 
