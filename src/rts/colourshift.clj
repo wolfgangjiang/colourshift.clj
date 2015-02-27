@@ -830,12 +830,37 @@
   (fn [gs g]
     (:mode gs)))
 
-(defmethod mode-render :playing [gs g]
+(defn set-font-size [g size]
+  (let [font (.getFont g)
+        new-font (java.awt.Font. (.getFontName font) 0 size)]
+    (.setFont g new-font)))
+
+(defn draw-board-in-gs [gs g]
   (let [config (:config gs)
         board (or (:dyed-board gs) (dye-board (:board gs)))
         {:keys [max-x max-y tile-size]} config]
     (clear-screen g max-x max-y)
     (draw-board g board tile-size)))
+
+(defn draw-victory-dialog [g]
+  (.setBackground g (Color/BLACK))
+  (.clearRect g 80 50 400 200)
+  (.setColor g (Color/RED))
+  (.drawRect g 80 50 400 200)
+  (.drawRect g 100 150 110 70) ;; hide
+  (.drawRect g 250 150 210 70) ;; play again
+  (.setColor g (Color/WHITE))
+  (set-font-size g 40)
+  (.drawString g "Well done!" 100 90)
+  (.drawString g "hide" 105 185)
+  (.drawString g "play again" 255 185))
+
+(defmethod mode-render :playing [gs g]
+  (draw-board-in-gs gs g))
+
+(defmethod mode-render :victory [gs g]
+  (draw-board-in-gs gs g)
+  (draw-victory-dialog g))
 
 ;;;; ============== queue event handler =================
 
@@ -855,6 +880,11 @@
 
 (queue-register :click-rotate handle-mouse-click-and-rotate)
 
+(defn handle-victory-hide-button-click [gs _]
+  (assoc gs :mode :victory-hide))
+
+(queue-register :hide-victory-dialog handle-victory-hide-button-click)
+
 ;;;; ================ mode input handler ================
 
 (defn parse-mouse-event-to-board-pos [config mouse-event]
@@ -872,6 +902,16 @@
   (case (:type input)
     :mouse-clicked (let [pos (parse-mouse-event-to-board-pos (:config gs) (:info input))]
                      (queue-send :click-rotate pos))
+    nil))
+
+(defmethod mode-handle-input :victory [gs input]
+  (case (:type input)
+    :mouse-clicked (let [mouse-event (:info input)
+                         mx (.getX mouse-event)
+                         my (.getY mouse-event)]
+                     (cond
+                      (and (< 100 mx 210) (< 150 my 220)) (queue-send :hide-victory-dialog nil)
+                      :t nil))
     nil))
 
 ;;;; ================ input handler =====================
@@ -1001,7 +1041,8 @@
      :connection [:east :north]}
     ]))
 
-(def random-solution-board (generate-question 16 16 8))
+;; (def random-solution-board (generate-question 16 16 8))
+(def random-solution-board (generate-question 2 2 1))
 
 (defn start []
   (main-loop (new-colourshift {:max-x 850

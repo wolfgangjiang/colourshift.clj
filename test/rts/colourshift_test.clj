@@ -68,14 +68,18 @@
                        :tile-size 50
                        :initial-board {}}})
 
-(defn make-test-mouse-input-at-board [pos config]
-  (let [tile-size (:tile-size config)
-        [mouse-x mouse-y] (pos-scale-multiply pos tile-size)
+(defn make-test-mouse-input-at-window [window-pos]
+  (let [[mouse-x mouse-y] window-pos
         dummy-source (javax.swing.JPanel.)
         mouse-event (java.awt.event.MouseEvent.
                      dummy-source 0 0 0 mouse-x mouse-y 1 false)]
     {:type :mouse-clicked
      :info mouse-event}))
+
+(defn make-test-mouse-input-at-board [pos config]
+  (let [tile-size (:tile-size config)
+        [mouse-x mouse-y] (pos-scale-multiply pos tile-size)]
+    (make-test-mouse-input-at-window [mouse-x mouse-y])))
 
 
 ;;;; ===================================================
@@ -802,14 +806,28 @@
 
 (deftest all-bulb-lit-should-lead-to-victory-mode
   (let [board (ts-make-tileset
-                   [{:id 0 :pos [0 0] :type :bulb
-                     :connection [:east] :expected-colour :red}
-                    {:id 1 :pos [1 0] :type :source
-                     :connection [:west :east] :colour :red}
-                    {:id 2 :pos [2 0] :type :bulb
-                     :connection [:south] :expected-colour :red}])
+               [{:id 0 :pos [0 0] :type :bulb
+                 :connection [:east] :expected-colour :red}
+                {:id 1 :pos [1 0] :type :source
+                 :connection [:west :east] :colour :red}
+                {:id 2 :pos [2 0] :type :bulb
+                 :connection [:south] :expected-colour :red}])
         mouse-input (make-test-mouse-input-at-board [2 0] (:config test-gs))
         gs (merge test-gs {:mode :playing
                            :board board})
         next-gs (handle-one-input gs mouse-input)]
     (is (= (:mode next-gs) :victory))))
+
+(deftest click-hide-button-in-victory-mode-should-lead-to-victory-hide-mode
+  (let [board (ts-make-tileset
+               [{:id 0 :pos [0 0] :type :bulb
+                 :connection [:east] :expected-colour :red}
+                {:id 1 :pos [1 0] :type :source
+                 :connection [:west :east] :colour :red}
+                {:id 2 :pos [2 0] :type :bulb
+                 :connection [:south] :expected-colour :red}])
+        mouse-input (make-test-mouse-input-at-window [200 200])
+        gs (merge test-gs {:mode :victory
+                           :board board})
+        next-gs (handle-one-input gs mouse-input)]
+    (is (= (:mode next-gs) :victory-hide))))
