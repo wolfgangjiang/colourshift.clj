@@ -809,16 +809,17 @@
   (.setColor g Color/WHITE)
   (.drawRect g start-x start-y tile-size tile-size))
 
-(defn draw-tile [g tile tile-size]
+(defn draw-tile [g tile tile-size is-playing]
   (let [[pos-x pos-y] (:pos tile)
         start-x (* pos-x tile-size)
         start-y (* pos-y tile-size)]
-    (draw-tile-border g start-x start-y tile-size)
+    (when is-playing
+      (draw-tile-border g start-x start-y tile-size))
     (draw-specific-tile g tile start-x start-y tile-size)))
 
-(defn draw-board [g dyed-board tile-size]
+(defn draw-board [g dyed-board tile-size is-playing]
   (doseq [tile (sort-by :id (ts-flat-tile-list dyed-board))]
-    (draw-tile g tile tile-size)))
+    (draw-tile g tile tile-size is-playing)))
 
 (defn clear-screen [g max-x max-y]
   (.setBackground g (Color/BLACK))
@@ -838,9 +839,10 @@
 (defn draw-board-in-gs [gs g]
   (let [config (:config gs)
         board (or (:dyed-board gs) (dye-board (:board gs)))
-        {:keys [max-x max-y tile-size]} config]
+        {:keys [max-x max-y tile-size]} config
+        is-playing (= :playing (:mode gs))]
     (clear-screen g max-x max-y)
-    (draw-board g board tile-size)))
+    (draw-board g board tile-size is-playing)))
 
 (defn draw-victory-dialog [g]
   (.setBackground g (Color/BLACK))
@@ -861,6 +863,9 @@
 (defmethod mode-render :victory [gs g]
   (draw-board-in-gs gs g)
   (draw-victory-dialog g))
+
+(defmethod mode-render :victory-hide [gs g]
+  (draw-board-in-gs gs g))
 
 ;;;; ============== queue event handler =================
 
@@ -884,6 +889,12 @@
   (assoc gs :mode :victory-hide))
 
 (queue-register :hide-victory-dialog handle-victory-hide-button-click)
+
+(def game-reset :pre-def)
+(defn handle-reset-game [gs _]
+  (game-reset gs))
+
+(queue-register :reset-game handle-reset-game)
 
 ;;;; ================ mode input handler ================
 
@@ -911,7 +922,13 @@
                          my (.getY mouse-event)]
                      (cond
                       (and (< 100 mx 210) (< 150 my 220)) (queue-send :hide-victory-dialog nil)
+                      (and (< 250 mx 460) (< 150 my 220)) (queue-send :reset-game nil)
                       :t nil))
+    nil))
+
+(defmethod mode-handle-input :victory-hide [gs input]
+  (case (:type input)
+    :mouse-clicked (queue-send :victory nil)
     nil))
 
 ;;;; ================ input handler =====================
@@ -931,7 +948,9 @@
 (defn game-reset [gs]
   (-> gs
       (assoc :mode :playing)
-      (assoc :board (generate-question 16 16 8))))
+      (dissoc :dyed-board)
+      (assoc :board (generate-question 2 2 1))))
+      ;; (assoc :board (generate-question 16 16 8))))
 
 (defn game-handle-user-inputs [gs inputs]
   (reduce handle-one-input gs inputs))

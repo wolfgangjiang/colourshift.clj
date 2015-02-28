@@ -821,13 +821,31 @@
 (deftest click-hide-button-in-victory-mode-should-lead-to-victory-hide-mode
   (let [board (ts-make-tileset
                [{:id 0 :pos [0 0] :type :bulb
-                 :connection [:east] :expected-colour :red}
-                {:id 1 :pos [1 0] :type :source
-                 :connection [:west :east] :colour :red}
-                {:id 2 :pos [2 0] :type :bulb
-                 :connection [:south] :expected-colour :red}])
+                 :connection [:east] :expected-colour :red}])
         mouse-input (make-test-mouse-input-at-window [200 200])
         gs (merge test-gs {:mode :victory
                            :board board})
         next-gs (handle-one-input gs mouse-input)]
     (is (= (:mode next-gs) :victory-hide))))
+
+(deftest click-anywhere-in-victory-hide-mode-should-go-back-to-victory-mode
+  (let [board (ts-make-tileset
+               [{:id 0 :pos [0 0] :type :bulb
+                 :connection [:east] :expected-colour :red}])
+        mouse-input (make-test-mouse-input-at-window [30 30])
+        gs (merge test-gs {:mode :victory-hide
+                           :board board})
+        next-gs (handle-one-input gs mouse-input)]
+    (is (= (:mode next-gs) :victory))))
+  
+(deftest click-again-button-in-victory-mode-should-reset-game
+  (let [board (ts-make-tileset
+               [{:id 0 :pos [0 0] :type :bulb
+                 :connection [:east] :expected-colour :red}])
+        mouse-input (make-test-mouse-input-at-window [255 185])
+        gs (merge test-gs {:mode :victory
+                           :board board})
+        next-gs (handle-one-input gs mouse-input)]
+    (is (= (:mode next-gs) :playing))
+    (is (not (= (:board next-gs) board)))))
+  
