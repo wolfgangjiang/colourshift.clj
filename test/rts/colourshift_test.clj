@@ -19,7 +19,7 @@
   (let [pairs (get-all-non-reflexive-pairings ge-by-id tile-list)]
     (not-any? (fn [pair]
                 (let [[t1 t2] (vec pair)]
-                  (is-adjacent t1 t2)))
+                  (is-adjacent t1 t2 {:wrapped false})))
               pairs)))
 
 (defn get-id-set [tile-list]
@@ -39,10 +39,16 @@
   (has-cycle-recur [(first subgraph)] subgraph))
 
 (defn generate-test-solution []
-  (generate-solution 10 10 4))
+  (generate-solution {:x-tiles 10
+                      :y-tiles 10
+                      :seed-count 4
+                      :wrapped false}))
 
 (defn generate-test-question []
-  (generate-question 10 10 4))
+  (generate-question {:x-tiles 10
+                      :y-tiles 10
+                      :seed-count 4
+                      :wrapped false}))
 
 ;; (defn all-single-ended-tiles-in-subgraph-is-multi-shared [subgraph whole-board]
 ;;   (let [single-ended-tiles (filter is-single-ended subgraph)
@@ -81,6 +87,8 @@
         [mouse-x mouse-y] (pos-scale-multiply pos tile-size)]
     (make-test-mouse-input-at-window [mouse-x mouse-y])))
 
+(defn dye-board-unwrapped [board]
+  (dye-board board {:wrapped false}))
 
 ;;;; ===================================================
 
@@ -188,7 +196,7 @@
                      :connection [:west :east]}
                     {:id 2 :pos [2 0] :type :source
                      :connection [:west] :colour :red}])
-        dyed-board (dye-board raw-board)
+        dyed-board (dye-board-unwrapped raw-board)
         bulb-colour (:colour (ts-find-by-id 0 dyed-board))
         wire-colour (:colour (ts-find-by-id 1 dyed-board))]
     (is (= bulb-colour :red))
@@ -202,7 +210,7 @@
                     :connection [:west :east]}
                    {:id 2 :pos [2 0] :type :source
                     :connection [:west] :colour :red}])
-        dyed-board (dye-board raw-board)
+        dyed-board (dye-board-unwrapped raw-board)
         bulb-colour (:colour (ts-find-by-id 0 dyed-board))
         wire-colour (:colour (ts-find-by-id 1 dyed-board))]
     (is (= bulb-colour :gray))
@@ -218,7 +226,7 @@
                     :connection [:west] :colour :red}
                    {:id 3 :pos [1 1] :type :bulb
                     :connection [:north]}])
-        dyed-board (dye-board raw-board)
+        dyed-board (dye-board-unwrapped raw-board)
         bulb1-colour (:colour (ts-find-by-id 0 dyed-board))
         bulb2-colour (:colour (ts-find-by-id 3 dyed-board))
         wire-colour (:colour (ts-find-by-id 1 dyed-board))]
@@ -236,7 +244,7 @@
                     :connection [:west] :colour :red}
                    {:id 3 :pos [1 1] :type :source
                     :connection [:north] :colour :blue}])
-        dyed-board (dye-board raw-board)
+        dyed-board (dye-board-unwrapped raw-board)
         bulb-colour (:colour (ts-find-by-id 0 dyed-board))
         wire-colour (:colour (ts-find-by-id 1 dyed-board))
         source1-colour (:colour (ts-find-by-id 2 dyed-board))
@@ -258,7 +266,7 @@
                     :connection [:north] :colour :blue}
                    {:id 4 :pos [1 -1] :type :source
                     :connection [:south] :colour :green}])
-        dyed-board (dye-board raw-board)
+        dyed-board (dye-board-unwrapped raw-board)
         bulb-colour (:colour (ts-find-by-id 0 dyed-board))
         wire-colour (:colour (ts-find-by-id 1 dyed-board))]
     (is (= bulb-colour :white))
@@ -276,7 +284,7 @@
                      :connection [:north] :colour :green}
                     {:id 4 :pos [1 -1] :type :bulb
                      :connection [:south]}])
-        dyed-board (dye-board raw-board)
+        dyed-board (dye-board-unwrapped raw-board)
         bulb1-colour (:colour (ts-find-by-id 0 dyed-board))
         bulb2-colour (:colour (ts-find-by-id 4 dyed-board))
         wire-colour (:colour (ts-find-by-id 1 dyed-board))]
@@ -290,7 +298,7 @@
                      :connection [:east] }
                     {:id 1 :pos [1 0] :type :wire
                      :connection [:west :east]}])
-        dyed-board (dye-board raw-board)
+        dyed-board (dye-board-unwrapped raw-board)
         bulb-colour (:colour (ts-find-by-id 0 dyed-board))
         wire-colour (:colour (ts-find-by-id 1 dyed-board))]
     (is (= bulb-colour :gray))
@@ -310,7 +318,7 @@
                      :connection [:north] :colour :green}
                     {:id 5 :pos [1 -1] :type :bulb
                      :connection [:south]}])
-        dyed-board (dye-board raw-board)
+        dyed-board (dye-board-unwrapped raw-board)
         bulb1-colour (:colour (ts-find-by-id 0 dyed-board))
         bulb2-colour (:colour (ts-find-by-id 5 dyed-board))
         wire1-colour (:colour (ts-find-by-id 1 dyed-board))
@@ -332,7 +340,7 @@
                      :connection [:west] :colour :red}
                     {:id 5 :pos [1 -1] :type :bulb
                      :connection [:south]}])
-        dyed-board (dye-board raw-board)
+        dyed-board (dye-board-unwrapped raw-board)
         bulb1-colour (:colour (ts-find-by-id 0 dyed-board))
         bulb2-colour (:colour (ts-find-by-id 5 dyed-board))
         wire1-colour (:colour (ts-find-by-id 1 dyed-board))
@@ -350,7 +358,7 @@
                      :connection [:west :east]}
                     {:id 2 :pos [1 0] :type :twin-wire
                      :connection [:north :south]}])
-        dyed-board (dye-board raw-board)
+        dyed-board (dye-board-unwrapped raw-board)
         bulb-colour (:colour (ts-find-by-id 0 dyed-board))
         wire1-colour (:colour (ts-find-by-id 1 dyed-board))
         wire2-colour (:colour (ts-find-by-id 2 dyed-board))]
@@ -376,7 +384,7 @@
                      :connection [:north] :colour :blue}
                     {:id 16 :pos [4 3] :type :wire
                      :connection [:west :east]}])
-        dyed-board (dye-board raw-board)
+        dyed-board (dye-board-unwrapped raw-board)
         wire1-colour (:colour (ts-find-by-id 10 dyed-board))
         wire2-colour (:colour (ts-find-by-id 11 dyed-board))]
     (is (= wire1-colour :blue))
@@ -391,7 +399,7 @@
                 {:id 2 :pos [0 1] :type :twin-wire
                  :connection [:south :west]}])
         from-tile (ts-find-by-id 0 board)]
-    (is (= 1 (:id (ts-find-by-connection :west from-tile board))))))
+    (is (= 1 (:id (ts-find-by-connection :west from-tile board {:wrapped false}))))))
 
 ;; active non-connection: from-tile does not have a connection to the
 ;; direction of the target tile.
@@ -402,7 +410,7 @@
                 {:id 1 :pos [1 0] :type :wire
                  :connection [:north :south]}])
         from-tile (ts-find-by-id 0 board)]
-    (is (= nil (ts-find-by-connection :west from-tile board)))))
+    (is (= nil (ts-find-by-connection :west from-tile board {:wrapped false})))))
 
 ;; active non-connection: from-tile has a connection to the
 ;; direction of the target tile, but target tile does not have a
@@ -414,7 +422,7 @@
                 {:id 1 :pos [0 1] :type :wire
                  :connection [:north :south]}])
         from-tile (ts-find-by-id 0 board)]
-    (is (= nil (ts-find-by-connection :west from-tile board)))))
+    (is (= nil (ts-find-by-connection :west from-tile board {:wrapped false})))))
 
 (deftest finding-by-connection-handles-normal-connection-well
   (let [board (ts-make-tileset
@@ -423,7 +431,7 @@
                 {:id 1 :pos [0 1] :type :wire
                  :connection [:north :east]}])
         from-tile (ts-find-by-id 0 board)]
-    (is (= 1 (:id (ts-find-by-connection :west from-tile board))))))
+    (is (= 1 (:id (ts-find-by-connection :west from-tile board {:wrapped false}))))))
 
 
 ;;; A subwire should be of same colour of connected wire or bulb,
@@ -437,7 +445,7 @@
                      :connection [:west :east]}
                     {:id 2 :pos [2 0] :type :source
                      :connection [:west] :colour :green}])
-        dyed-board (dye-board raw-board)
+        dyed-board (dye-board-unwrapped raw-board)
         source-1-subwires (:subwires (ts-find-by-id 0 dyed-board))]
     (is (= source-1-subwires {:east :yellow :south :red}))))
 
@@ -457,7 +465,7 @@
                    {:id 4 :pos [1 1] :type :wire
                     :connection [:north]}]]
     (dotimes [_ quick-check-times]
-      (let [picked-tiles (pick-at-most-n-non-adjacent-tiles tile-list 3)]
+      (let [picked-tiles (pick-at-most-n-non-adjacent-tiles tile-list 3 {:wrapped false})]
         (is (<= (count picked-tiles) 3))
         (is (no-adjacent-pairs-in picked-tiles))))))
 
@@ -477,7 +485,10 @@
 
 (deftest any-two-seeds-are-not-adjacent
   (dotimes [_ quick-check-times]
-    (let [[seeds unoccupied] (generate-seeds 10 10 11)]
+    (let [[seeds unoccupied] (generate-seeds {:x-tiles 10
+                                              :y-tiles 10
+                                              :seed-count 11
+                                              :wrapped false})]
       (is (= 11 (count seeds)))
       (is (= 89 (count unoccupied)))
       (is (no-adjacent-pairs-in seeds)))))
@@ -489,7 +500,7 @@
                           :connection [:west]}]
         proto-pool-before [{:id 2 :pos [0 1]}]
         [proto-pool-after subgraph-after]
-        (subgraph-one-spurt-grow proto-pool-before subgraph-before)
+        (subgraph-one-spurt-grow proto-pool-before subgraph-before {:wrapped false})
         substantiated-tile (list-find-by-id 2 subgraph-after)
         seed-after-growth (list-find-by-id 0 subgraph-after)
         seed-after-growth-connection (into (hash-set) (:connection seed-after-growth))]
@@ -507,7 +518,7 @@
         proto-pool-before [{:id 2 :pos [0 1]}
                           {:id 3 :pos [2 0]}]
         [proto-pool-after subgraph-after]
-        (subgraph-one-spurt-grow proto-pool-before subgraph-before)
+        (subgraph-one-spurt-grow proto-pool-before subgraph-before {:wrapped false})
         subgraph-after-ids (get-id-set subgraph-after)]
     (is (or (= subgraph-after-ids #{0 1 2})
             (= subgraph-after-ids #{0 1 3})))
@@ -520,7 +531,7 @@
                           :connection [:west :east]}]
         proto-pool-before [{:id 5 :pos [10 10]}]
         [proto-pool-after subgraph-after]
-        (subgraph-one-spurt-grow proto-pool-before subgraph-before)
+        (subgraph-one-spurt-grow proto-pool-before subgraph-before {:wrapped false})
         subgraph-after-ids (get-id-set subgraph-after)]
     (is (= subgraph-after-ids #{0 1}))
     (is (= (count proto-pool-before) 1))))
@@ -538,7 +549,7 @@
           ts-solution (ts-make-tileset solution)]
       (doseq [tile solution]
         (let [connection (:connection tile)
-              connected-neighbors (ts-get-neighbors-by-connection tile ts-solution)]
+              connected-neighbors (ts-get-neighbors-by-connection tile ts-solution {:wrapped false})]
           (is (= (count connection)
                  (count (distinct connection))))
           (is (= (count connected-neighbors)
@@ -548,7 +559,7 @@
   (dotimes [_ quick-check-times]
     (let [solution (generate-test-solution)
           ts-solution (ts-make-tileset solution)
-          subgraphs (find-connected-subgraphs-default-setting ts-solution)]
+          subgraphs (find-connected-subgraphs ts-solution {:wrapped false})]
       (doseq [subg subgraphs]
         (is (> (count subg) 1))))))
 
@@ -556,7 +567,7 @@
   (dotimes [_ quick-check-times]
     (let [solution (generate-test-solution)
           ts-solution (ts-make-tileset solution)
-          subgraphs (find-connected-subgraphs-default-setting ts-solution)
+          subgraphs (find-connected-subgraphs ts-solution {:wrapped false})
           subgraph-sizes (sort (map count subgraphs))
           min-size (first subgraph-sizes)
           max-size (last subgraph-sizes)]
@@ -586,7 +597,7 @@
   (dotimes [_ quick-check-times]
     (let [solution (generate-test-solution)
           ts-solution (ts-make-tileset solution)
-          subgraphs (find-connected-subgraphs-default-setting ts-solution)]
+          subgraphs (find-connected-subgraphs ts-solution {:wrapped false})]
       (doseq [subg subgraphs]
         (is (not (has-cycle (ts-flat-tile-list subg))))))))
 
@@ -610,7 +621,7 @@
   (dotimes [_ quick-check-times]
     (let [solution (generate-test-solution)
           ts-solution (ts-make-tileset solution)
-          subgraphs (find-connected-subgraphs-default-setting ts-solution)]
+          subgraphs (find-connected-subgraphs ts-solution {:wrapped false})]
       (doseq [subg subgraphs]
         (let [bulbs (ts-filter is-bulb subg)
               subg-colour (blended-colour-of-subgraph subg)]
@@ -620,7 +631,7 @@
   (dotimes [_ quick-check-times]
     (let [solution (generate-test-solution)
           ts-solution (ts-make-tileset solution)
-          subgraphs (find-connected-subgraphs-default-setting ts-solution)]
+          subgraphs (find-connected-subgraphs ts-solution {:wrapped false})]
       (doseq [subg subgraphs]
         (let [sources (ts-filter is-source subg)
               source-colours (into (hash-set) (map :colour sources))]
@@ -632,13 +643,13 @@
           sources (filter is-source solution)
           source-pairs (map vec (get-all-non-reflexive-pairings ge-by-id sources))]
       (doseq [[s1 s2] source-pairs]
-        (is (not (is-connected s1 s2)))))))
+        (is (not (is-connected s1 s2 {:wrapped false})))))))
 
 (deftest there-is-at-least-one-source-in-each-subgraph
   (dotimes [_ quick-check-times]
     (let [solution (generate-test-solution)
           ts-solution (ts-make-tileset solution)
-          subgraphs (find-connected-subgraphs-default-setting ts-solution)]
+          subgraphs (find-connected-subgraphs ts-solution {:wrapped false})]
       (doseq [subg subgraphs]
         (let [sources (ts-filter is-source subg)]
           (is (>= (count sources) 1)))))))
@@ -662,7 +673,7 @@
   (dotimes [_ quick-check-times]
     (let [solution (generate-test-solution)
           ts-solution (ts-make-tileset solution)
-          subgraphs (find-connected-subgraphs-default-setting ts-solution)]
+          subgraphs (find-connected-subgraphs ts-solution {:wrapped false})]
       (doseq [subg subgraphs]
         (when-not (ts-all-single-ended-tiles-in-subgraph-is-multi-shared subg ts-solution)
           (let [bulbs (ts-filter is-bulb subg)]
@@ -739,7 +750,8 @@
                    :connection [:west] :colour :green}])
         subwires-of-tile-0 (dye-subwires-of-a-source
                             (ts-find-by-id 0 tileset)
-                            tileset)]
+                            tileset
+                            {:wrapped false})]
     (is (= subwires-of-tile-0 {:east :yellow}))))
 
 (deftest victory-check-negative
@@ -750,7 +762,7 @@
                      :connection [:west :east] :colour :red}
                     {:id 2 :pos [0 2] :type :bulb
                      :connection [:west] :expected-colour :blue}])
-        dyed-board (dye-board raw-board)]
+        dyed-board (dye-board-unwrapped raw-board)]
     (is (not (victory? dyed-board)))))
 
 (deftest victory-check-positive
@@ -761,7 +773,7 @@
                      :connection [:west :east] :colour :red}
                     {:id 2 :pos [2 0] :type :bulb
                      :connection [:west] :expected-colour :red}])
-        dyed-board (dye-board raw-board)]
+        dyed-board (dye-board-unwrapped raw-board)]
     (is (victory? dyed-board))))
 
 (deftest message-queue-works-well
@@ -849,3 +861,81 @@
     (is (= (:mode next-gs) :playing))
     (is (not (= (:board next-gs) board)))))
   
+(deftest wrapped-dyeing-can-correctly-dye-cross-edge
+  (let [board (ts-make-tileset
+               [{:id 0 :pos [0 0] :type :source
+                 :connection [:north :west] :colour :red}
+                {:id 1 :pos [1 0] :type :bulb
+                 :connection [:east] :expected-colour :red}
+                {:id 2 :pos [0 1] :type :wire
+                 :connection [:south :west]}
+                {:id 3 :pos [1 1] :type :bulb
+                 :connection [:east] :expected-colour :red}])
+        board-config {:x-tiles 2 :y-tiles 2 :wrapped true}
+        dyed-board (dye-board board board-config)
+        bulb-1-colour (:colour (ts-find-by-id 1 dyed-board))
+        bulb-3-colour (:colour (ts-find-by-id 3 dyed-board))]
+    (is (= :red bulb-1-colour))
+    (is (= :red bulb-1-colour))))
+    
+(deftest wrapped-generation-has-at-least-one-crossing-edge-connection
+  (let [board-config {:x-tiles 15
+                      :y-tiles 15
+                      :seed-count 10
+                      :wrapped true}
+        {:keys [x-tiles y-tiles]} board-config
+        solution (generate-solution board-config)
+        crossing-edge-count
+        (count
+         (filter (fn [tile]
+                   (let [[x y] (:pos tile)
+                         conn (:connection tile)]
+                     (or
+                      (and (= x 0) (some #{:west} conn))
+                      (and (= x (dec x-tiles)) (some #{:east} conn))
+                      (and (= y 0) (some #{:north} conn))
+                      (and (= y (dec y-tiles)) (some #{:south} conn)))))
+                 solution))]
+    (is (>= crossing-edge-count 1))))
+
+(deftest wrapped-generation-ensures-all-crossing-edge-connection-valid
+  (let [board-config {:x-tiles 15
+                      :y-tiles 15
+                      :seed-count 10
+                      :wrapped true}
+        {:keys [x-tiles y-tiles]} board-config
+        solution (generate-solution board-config)
+        get-opposite-pos (fn [tile]
+                           (let [conn-list (filter #(is-connected tile % board-config) solution)
+                                 oppo-list (remove #(is-adjacent tile % {:wrapped false}) conn-list)]
+                             (:pos (first oppo-list))))]
+    (doseq [tile solution]
+      (let [[x y] (:pos tile)
+            conn (:connection tile)]
+        (when (and (= x 0) (some #{:west} conn))
+          (let [[ox oy] (get-opposite-pos tile)]
+            (is (= ox (dec x-tiles)))
+            (is (= oy y))))
+        (when (and (= x (dec x-tiles)) (some #{:east} conn))
+          (let [[ox oy] (get-opposite-pos tile)]
+            (is (= ox 0))
+            (is (= oy y))))
+        (when (and (= y 0) (some #{:north} conn))
+          (let [[ox oy] (get-opposite-pos tile)]
+            (is (= ox x))
+            (is (= oy (dec y-tiles)))))
+        (when (and (= y (dec y-tiles)) (some #{:south} conn))
+          (let [[ox oy] (get-opposite-pos tile)]
+            (is (= ox x))
+            (is (= oy 0))))))))
+
+(deftest is-connected-works-in-wrapped-mode
+  (let [board-config {:x-tiles 15
+                      :y-tiles 15
+                      :seed-count 10
+                      :wrapped true}
+        tile-1 {:type :wire :connection [:north :south]
+                :id 678 :pos [0 0]}
+        tile-2 {:type :wire :connection [:east :south]
+                :id 692 :pos [0 14]}]
+    (is (is-connected tile-1 tile-2 board-config))))
