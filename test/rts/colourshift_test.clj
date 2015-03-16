@@ -72,6 +72,10 @@
                        :max-y 850
                        :best-fps 60
                        :tile-size 50
+                       :board-config {:x-tiles 4
+                                      :y-tiles 4
+                                      :seed-count 10
+                                      :wrapped false}
                        :initial-board {}}})
 
 (defn make-test-mouse-input-at-window [window-pos]
@@ -905,27 +909,29 @@
                       :wrapped true}
         {:keys [x-tiles y-tiles]} board-config
         solution (generate-solution board-config)
-        get-opposite-pos (fn [tile]
-                           (let [conn-list (filter #(is-connected tile % board-config) solution)
-                                 oppo-list (remove #(is-adjacent tile % {:wrapped false}) conn-list)]
-                             (:pos (first oppo-list))))]
+        get-opposite-pos (fn [tile dir]
+                           (let [diff (directions dir)
+                                 oppo-pos (compute-pos-by-diff (:pos tile) diff board-config)
+                                 conn-list (filter #(is-connected tile % board-config) solution)
+                                 oppo-tile (first (filter #(= (:pos %) oppo-pos) conn-list))]
+                             (:pos oppo-tile)))]
     (doseq [tile solution]
       (let [[x y] (:pos tile)
             conn (:connection tile)]
         (when (and (= x 0) (some #{:west} conn))
-          (let [[ox oy] (get-opposite-pos tile)]
+          (let [[ox oy] (get-opposite-pos tile :west)]
             (is (= ox (dec x-tiles)))
             (is (= oy y))))
         (when (and (= x (dec x-tiles)) (some #{:east} conn))
-          (let [[ox oy] (get-opposite-pos tile)]
+          (let [[ox oy] (get-opposite-pos tile :east)]
             (is (= ox 0))
             (is (= oy y))))
         (when (and (= y 0) (some #{:north} conn))
-          (let [[ox oy] (get-opposite-pos tile)]
+          (let [[ox oy] (get-opposite-pos tile :north)]
             (is (= ox x))
             (is (= oy (dec y-tiles)))))
         (when (and (= y (dec y-tiles)) (some #{:south} conn))
-          (let [[ox oy] (get-opposite-pos tile)]
+          (let [[ox oy] (get-opposite-pos tile :south)]
             (is (= ox x))
             (is (= oy 0))))))))
 
@@ -939,3 +945,21 @@
         tile-2 {:type :wire :connection [:east :south]
                 :id 692 :pos [0 14]}]
     (is (is-connected tile-1 tile-2 board-config))))
+
+(deftest scrolling-north
+  (let [board-config {:x-tiles 3
+                      :y-tiles 3
+                      :wrapped true}
+        board (ts-make-tileset
+               [{:id 0 :pos [0 0]}
+                {:id 1 :pos [2 2]}])
+        scrolled-board (scroll-board :north board board-config)
+        tile-0 (ts-find-by-id 0 scrolled-board)
+        tile-1 (ts-find-by-id 1 scrolled-board)]
+    (is (= 0 (:id (first (get scrolled-board [0 2])))))
+    (is (= 1 (:id (first (get scrolled-board [2 1])))))
+    (is (nil? (get scrolled-board [0 0])))
+    (is (nil? (get scrolled-board [2 2])))
+    (is (= [0 2] (:pos tile-0)))
+    (is (= [2 1] (:pos tile-1)))))
+

@@ -1,6 +1,7 @@
 (ns rts.colourshift
   (:use rts.engine)
-  (:import [java.awt BasicStroke Color]))
+  (:import [java.awt BasicStroke Color]
+           [java.awt.event KeyEvent]))
 
 ;;;; ============= tile-set ===================
 
@@ -631,7 +632,19 @@
   (let [ts-solution (ts-make-tileset (generate-solution board-config))]
     (scramble-board ts-solution)))
 
-;; ;;;; ================== rendering ======================
+;;;; ============ scrolling ======================
+
+(defn scroll-one-tile [diff tile board-config]
+  (let [new-pos (compute-pos-by-diff (:pos tile) diff board-config)]
+    (assoc tile :pos new-pos)))
+
+(defn scroll-board [dir board board-config]
+  (let [diff (directions dir)
+        flat-board (ts-flat-tile-list board)
+        new-flat-board (map #(scroll-one-tile diff % board-config) flat-board)]
+    (ts-make-tileset new-flat-board)))
+
+;;;; ================== rendering ======================
 
 (def line-width 5)
 
@@ -939,6 +952,14 @@
 
 (queue-register :reset-game handle-reset-game)
 
+(defn handle-key-scroll [gs dir]
+  (let [board-config (:board-config (:config gs))]
+    (-> gs
+        (update-in [:board] #(scroll-board dir % board-config))
+        (dissoc :dyed-board))))
+
+(queue-register :scroll handle-key-scroll)
+
 ;;;; ================ mode input handler ================
 
 (defn parse-mouse-event-to-board-pos [config mouse-event]
@@ -948,6 +969,20 @@
         pos-y (int (/ my tile-size))]
     [pos-x pos-y]))
 
+(defn interpret-arrow-key [key-code]
+  (condp = key-code
+    KeyEvent/VK_UP :south
+    KeyEvent/VK_DOWN :north
+    KeyEvent/VK_LEFT :east
+    KeyEvent/VK_RIGHT :west
+    nil))
+
+(defn send-arrow-key-message-maybe [gs input]
+  (let [dir (interpret-arrow-key (:key-code input))
+        wrapped (:wrapped (:board-config (:config gs)))]
+    (when (and dir wrapped)
+      (queue-send :scroll dir))))
+
 (defmulti mode-handle-input
   (fn [gs g]
     (:mode gs)))
@@ -956,6 +991,7 @@
   (case (:type input)
     :mouse-clicked (let [pos (parse-mouse-event-to-board-pos (:config gs) (:info input))]
                      (queue-send :click-rotate pos))
+    :key-pressed (send-arrow-key-message-maybe gs input)
     nil))
 
 (defmethod mode-handle-input :victory [gs input]
@@ -972,6 +1008,7 @@
 (defmethod mode-handle-input :victory-hide [gs input]
   (case (:type input)
     :mouse-clicked (queue-send :victory nil)
+    :key-pressed (send-arrow-key-message-maybe gs input)
     nil))
 
 ;;;; ================ input handler =====================
