@@ -1,7 +1,7 @@
-(ns rts.colourshift-test
+(ns varser.colourshift-test
   (:require [clojure.test :refer :all]
-            [rts.engine :refer :all])
-  (:use rts.colourshift))
+            [varser.engine :refer :all])
+  (:use varser.colourshift))
 
 (def quick-check-times 1)
 

@@ -1,5 +1,5 @@
-(ns rts.parkour-mock
-  (:use rts.engine))
+(ns varser.parkour-mock
+  (:use varser.engine))
 
 (defn put-engine-info [gs engine-info]
   (assoc gs :fps (:fps engine-info)))

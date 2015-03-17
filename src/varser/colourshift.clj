@@ -1,6 +1,6 @@
-(ns rts.colourshift
-  (:use rts.engine)
-  (:require [rts.widgets :as wd])
+(ns varser.colourshift
+  (:use varser.engine)
+  (:require [varser.widgets :as wd])
   (:import [java.awt BasicStroke Color]
            [java.awt.event KeyEvent]))
 

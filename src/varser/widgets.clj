@@ -1,4 +1,4 @@
-(ns rts.widgets
+(ns varser.widgets
   (:import [java.awt BasicStroke]))
 
 ;;;; ==== utilities ============

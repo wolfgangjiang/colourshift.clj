@@ -1,7 +1,7 @@
-(ns rts.parkour-mock-test
+(ns varser.parkour-mock-test
   (:require [clojure.test :refer :all]
-            [rts.engine :refer :all])
-  (:use rts.parkour-mock))
+            [varser.engine :refer :all])
+  (:use varser.parkour-mock))
 
 (deftest parkour-mock-normal
   (let [game (new-parkour-mock :normal 480 360 60)
