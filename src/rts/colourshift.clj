@@ -1,5 +1,6 @@
 (ns rts.colourshift
   (:use rts.engine)
+  (:require [rts.widgets :as wd])
   (:import [java.awt BasicStroke Color]
            [java.awt.event KeyEvent]))
 
@@ -87,10 +88,10 @@
 
 (def colour-rgbs {:gray Color/LIGHT_GRAY
                   :red Color/RED
-                  :green Color/GREEN
+                  :green (Color. 0x0 0xaa 0x0)
                   :blue Color/BLUE
                   :magenta Color/MAGENTA
-                  :cyan Color/CYAN
+                  :cyan (Color. 0x0 0x99 0xcc)
                   :yellow Color/YELLOW
                   :white Color/WHITE})
 
@@ -922,6 +923,37 @@
 (defmethod mode-render :victory-hide [gs g]
   (draw-board-in-gs gs g))
 
+(def default-widget-dict
+  {"title" (wd/wd-create-label
+            100 100 500 80 "Colourshift.clj" 65)
+   "size" (wd/wd-create-radio
+           100 200 500 80
+           ["small" "medium" "large" "huge"])
+   "is-wrapped" (wd/wd-create-radio
+                 100 300 500 80
+                 ["unwrapped" "wrapped"])
+   "submit" (wd/wd-create-button
+             200 400 200 80 "OK")})
+
+(defn check-colour-contrast [g]
+  (let [colours [:gray :red :green :yellow :blue :magenta :cyan :white]]
+    (doseq [i (range (count colours))]
+      (let [c (get colours i)
+            rgb (colour-rgbs c)
+            h 50
+            y (* h i)]
+        (.setColor g rgb)
+        (.fillRect g 700 y 150 h)))))
+
+(defmethod mode-render :menu [gs g]
+  (let [{:keys [max-x max-y]} (:config gs)]
+    (clear-screen g max-x max-y))
+  (check-colour-contrast g)
+  (.setColor g (Color/GREEN))
+  (let [widget-dict (:widget-dict gs)]
+    (doseq [widget-name (keys widget-dict)]
+      (wd/wd-render gs widget-name g))))
+
 ;;;; ============== queue event handler =================
 
 (defn victory-handler [gs _]
@@ -946,6 +978,7 @@
 
 (queue-register :hide-victory-dialog handle-victory-hide-button-click)
 
+(def game-start :pre-def)
 (def game-reset :pre-def)
 (defn handle-reset-game [gs _]
   (game-reset gs))
@@ -959,6 +992,11 @@
         (dissoc :dyed-board))))
 
 (queue-register :scroll handle-key-scroll)
+
+(defn handle-menu [gs next-gs]
+  next-gs)
+
+(queue-register :handle-menu handle-menu)
 
 ;;;; ================ mode input handler ================
 
@@ -982,6 +1020,18 @@
         wrapped (:wrapped (:board-config (:config gs)))]
     (when (and dir wrapped)
       (queue-send :scroll dir))))
+
+(defn widgets-handle-input [gs mouse-pos]
+  (let [widget-dict (:widget-dict gs)
+        widget-names (keys widget-dict)
+        hit-widget-name (first (filter #(wd/wd-hit-test gs % mouse-pos) widget-names))]
+    (when hit-widget-name
+      (let [[next-widget next-gs] (wd/wd-click gs hit-widget-name mouse-pos)
+            next-gs-with-widget (update-in next-gs [:widget-dict hit-widget-name] (fn [_] next-widget))
+            true-next-gs (if (= (:mode next-gs-with-widget) :ready-to-generate)
+                           (game-start next-gs-with-widget)
+                           next-gs-with-widget)]
+        (queue-send :handle-menu true-next-gs)))))
 
 (defmulti mode-handle-input
   (fn [gs g]
@@ -1011,6 +1061,16 @@
     :key-pressed (send-arrow-key-message-maybe gs input)
     nil))
 
+(defmethod mode-handle-input :menu [gs input]
+  (case (:type input)
+    :mouse-clicked (let [mouse-event (:info input)
+                         mx (.getX mouse-event)
+                         my (.getY mouse-event)
+                         mouse-pos [mx my]]
+                     (widgets-handle-input gs mouse-pos))
+    nil))
+                     
+
 ;;;; ================ input handler =====================
 
 (defn handle-one-input [gs input]
@@ -1021,14 +1081,21 @@
 
 (defn game-init [config]
   {:config config
-   :mode :playing
+   :mode :menu
+   :widget-dict default-widget-dict
    :board (:initial-board config)
    :fps -1})
 
 (defn game-reset [gs]
   (-> gs
+      (assoc :mode :menu)
+      (assoc :widget-dict default-widget-dict)))
+
+(defn game-start [gs]
+  (-> gs
       (assoc :mode :playing)
       (dissoc :dyed-board)
+      (dissoc :widget-dict)
       (assoc :board (generate-question (:board-config (:config gs))))))
 
 (defn game-handle-user-inputs [gs inputs]
@@ -1153,8 +1220,8 @@
 ;;                             (generate-solution the-board-config)))
 
 (defn start []
-  (main-loop (new-colourshift {:max-x 850
-                               :max-y 850
+  (main-loop (new-colourshift {:max-x 1650
+                               :max-y 950
                                :best-fps 60
                                :tile-size 50
                                :board-config the-board-config

@@ -862,8 +862,7 @@
         gs (merge test-gs {:mode :victory
                            :board board})
         next-gs (handle-one-input gs mouse-input)]
-    (is (= (:mode next-gs) :playing))
-    (is (not (= (:board next-gs) board)))))
+    (is (= (:mode next-gs) :menu))))
   
 (deftest wrapped-dyeing-can-correctly-dye-cross-edge
   (let [board (ts-make-tileset
